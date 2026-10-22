@@ -7,7 +7,7 @@ export function makeCode(rnd: () => number = Math.random): string {
 }
 
 type Send = (id: string, m: ServerMsg) => void;
-interface Room { code: string; phase: RoomView['phase']; host: string; players: Map<string, PlayerView>; start?: RoomView['start']; finished: Set<string>; }
+interface Room { code: string; phase: RoomView['phase']; host: string; players: Map<string, PlayerView>; start?: RoomView['start']; finished: Set<string>; again: Set<string>; round: number; }
 
 /** All lobby rules live here, free of sockets, so they can be unit-tested. */
 export class Rooms {
@@ -16,7 +16,7 @@ export class Rooms {
   constructor(private send: Send, private rnd: () => number = Math.random) {}
 
   private view(r: Room): RoomView {
-    return { code: r.code, phase: r.phase, host: r.host, players: [...r.players.values()], start: r.start };
+    return { code: r.code, phase: r.phase, round: r.round, host: r.host, players: [...r.players.values()].map((p) => ({ ...p, again: r.again.has(p.id) })), start: r.start };
   }
   private broadcast(r: Room) { const v = this.view(r); r.players.forEach((_, id) => this.send(id, { t: 'room', room: v })); }
   private err(id: string, code: Extract<ServerMsg, { t: 'error' }>['code'], msg: string) { this.send(id, { t: 'error', code, msg }); }
@@ -27,7 +27,7 @@ export class Rooms {
       case 'create': {
         this.leave(id);
         let code = makeCode(this.rnd); while (this.rooms.has(code)) code = makeCode(this.rnd);
-        const r: Room = { code, phase: 'lobby', host: id, players: new Map(), finished: new Set() };
+        const r: Room = { code, phase: 'lobby', host: id, players: new Map(), finished: new Set(), again: new Set(), round: 0 };
         this.rooms.set(code, r); this.add(r, id, m.name, m.av); return;
       }
       case 'join': {
@@ -43,7 +43,7 @@ export class Rooms {
         if (!r || !p) return this.err(id, 'not_in_room', 'Not in a room');
         if (r.phase !== 'lobby') return; // frozen once the race starts
         if (m.t === 'pick') { p.ride = m.ride; p.ready = false; }
-        if (m.t === 'vote') p.vote = { map: m.map, wx: m.wx };
+        if (m.t === 'vote') p.vote = { map: m.map, wx: m.wx, diff: m.diff };
         if (m.t === 'ready') p.ready = m.ready && !!p.ride && !!p.vote;
         this.maybeStart(r); this.broadcast(r); return;
       }
@@ -54,14 +54,18 @@ export class Rooms {
       case 'finish': {
         const r = this.room(id); if (!r || r.phase !== 'racing') return;
         r.finished.add(id); r.players.forEach((_, o) => { if (o !== id) this.send(o, { t: 'finish', id, time: m.time }); });
-        if (r.finished.size >= r.players.size) { r.phase = 'finished'; this.broadcast(r); } return;
+        if (r.finished.size >= r.players.size) { r.phase = 'finished'; this.maybeRematch(r); this.broadcast(r); } return;
+      }
+      case 'rematch': {
+        const r = this.room(id); if (!r || r.phase === 'lobby') return;
+        r.again.add(id); this.maybeRematch(r); this.broadcast(r); return;
       }
       default: this.err(id, 'bad_msg', 'Unknown message');
     }
   }
 
   private add(r: Room, id: string, name: string, av: number) {
-    r.players.set(id, { id, name: String(name).slice(0, 16) || 'Player', av: av | 0, ride: null, vote: null, ready: false });
+    r.players.set(id, { id, name: String(name).slice(0, 16) || 'Player', av: av | 0, ride: null, vote: null, ready: false, again: false });
     this.where.set(id, r.code); this.broadcast(r);
   }
 
@@ -69,23 +73,30 @@ export class Rooms {
   private maybeStart(r: Room) {
     const ps = [...r.players.values()];
     if (ps.length < 2 || !ps.every((p) => p.ready)) return;
-    const pickWin = (k: 'map' | 'wx') => {
+    const pickWin = (k: 'map' | 'wx' | 'diff') => {
       const c = new Map<number, number>(); ps.forEach((p) => c.set(p.vote![k], (c.get(p.vote![k]) || 0) + 1));
       const top = Math.max(...c.values()), tied = [...c].filter(([, n]) => n === top).map(([v]) => v);
       return tied[Math.floor(this.rnd() * tied.length)];
     };
-    r.start = { map: pickWin('map'), wx: pickWin('wx'), seed: Math.floor(this.rnd() * 2 ** 31) };
-    r.phase = 'racing';
+    r.start = { map: pickWin('map'), wx: pickWin('wx'), diff: pickWin('diff'), seed: Math.floor(this.rnd() * 2 ** 31) };
+    r.phase = 'racing'; r.round++;
+  }
+
+  /** Rematch: once the race is over and every player still here asked for it, restart together with the same ride/map/weather. */
+  private maybeRematch(r: Room) {
+    if (r.phase !== 'finished' || !r.players.size || ![...r.players.keys()].every((id) => r.again.has(id))) return;
+    r.start = { ...r.start!, seed: Math.floor(this.rnd() * 2 ** 31) };
+    r.phase = 'racing'; r.round++; r.finished.clear(); r.again.clear();
   }
 
   leave(id: string) {
     const r = this.room(id); if (!r) return;
-    r.players.delete(id); this.where.delete(id);
+    r.players.delete(id); r.again.delete(id); r.finished.delete(id); this.where.delete(id);
     r.players.forEach((_, o) => this.send(o, { t: 'left', id }));
     if (!r.players.size) { this.rooms.delete(r.code); return; }
     if (r.host === id) r.host = r.players.keys().next().value as string;
     if (r.phase === 'lobby') this.maybeStart(r);
-    else if (r.phase === 'racing' && [...r.players.keys()].every((p) => r.finished.has(p))) r.phase = 'finished';
+    else if (r.phase === 'racing' && [...r.players.keys()].every((p) => r.finished.has(p))) { r.phase = 'finished'; this.maybeRematch(r); } else if (r.phase === 'finished') this.maybeRematch(r);
     this.broadcast(r);
   }
   get size() { return this.rooms.size; }

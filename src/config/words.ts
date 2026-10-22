@@ -8,3 +8,10 @@ export const LONG_WORDS = 'kaleidoscope thunderstorm unbelievable extraordinary 
 
 export const SHORT_WORDS = EASY.filter((w) => w.length <= 4);
 
+
+export const DIFFS = [
+  { id: 'easy', name: 'Easy', sample: 'plain words only', ex: 'road fast turn' },
+  { id: 'medium', name: 'Medium', sample: 'capitals, commas', ex: 'Fast, turn-in,' },
+  { id: 'hard', name: 'Hard', sample: 'brackets, numbers', ex: '(brake!) drift7;' }
+];
+export const DEFAULT_DIFF = 1;

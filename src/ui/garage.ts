@@ -7,6 +7,7 @@ import { $, esc, fmtTime } from '../utils/helpers';
 import { me, rivals } from '../core/player';
 import { syncMine, enterOnline, onlineEnabled, leaveOnline } from '../net/online';
 import { MAPS, WEATHERS, WX_UI } from '../config/maps';
+import { DIFFS, DEFAULT_DIFF } from '../config/words';
 import { buildTrack } from '../world/tracks/track';
 import { loadBest } from '../storage/best';
 import { garageModels, raceScene } from '../render/scenes';
@@ -54,6 +55,13 @@ function renderVotes() {
     [...b.querySelectorAll('.vcs,.lead')].forEach((n) => n.remove());
     b.insertAdjacentHTML('beforeend', chipsHtml(mine) + (tm.lead === i ? '<em class="lead">' + tm.counts[i] + '</em>' : ''));
   });
+  const td = tally('diff', 3);
+  [...$('dfChips').children].forEach((b, i) => {
+    const mine = vs.filter((v) => v.diff === i);
+    b.classList.toggle('sel', S.myVote.diff === i); b.setAttribute('aria-pressed', S.myVote.diff === i ? 'true' : 'false');
+    [...b.querySelectorAll('.vcs,.lead')].forEach((n) => n.remove());
+    b.insertAdjacentHTML('beforeend', chipsHtml(mine) + (td.lead === i ? '<em class="lead">' + td.counts[i] + '</em>' : ''));
+  });
   [...$('wxChips').children].forEach((b, i) => {
     const mine = vs.filter((v) => v.wx === i);
     b.classList.toggle('sel', S.myVote.wx === i); b.setAttribute('aria-pressed', S.myVote.wx === i ? 'true' : 'false');
@@ -67,6 +75,7 @@ export function applyVotes() {
   const lead = MAPS[tm.lead];
   if (!S.MAP || S.MAP.id !== lead.id) { buildTrack(lead); loadBest(); }
   S.WX = WEATHERS[tw.lead].id;
+  S.DIFF = DIFFS[tally('diff', 3).lead].id;
   renderVotes(); renderRideCards(); updateSum(); syncMine();
 }
 
@@ -88,12 +97,16 @@ export function selectRide(ride) {
 
 export function updateSum() { try { setGarageTheme(S.MAP); } catch (e) { console.error(e); } }
 
-function saveSetup() { updateSum(); try { localStorage.setItem('turbotype-setup', JSON.stringify({ map: MAPS[S.myVote.map].id, wx: WEATHERS[S.myVote.wx].id, ride: S.selectedRide && S.selectedRide.id })); } catch (e) { /* ignore */ } }
+function saveSetup() { updateSum(); try { localStorage.setItem('turbotype-setup', JSON.stringify({ map: MAPS[S.myVote.map].id, wx: WEATHERS[S.myVote.wx].id, diff: DIFFS[S.myVote.diff].id, ride: S.selectedRide && S.selectedRide.id })); } catch (e) { /* ignore */ } }
 
 export function selectMap(map, force) {
   S.myVote.map = Math.max(0, MAPS.indexOf(map));
   if (force) S.botVote.forEach((b) => { b.map = S.myVote.map; });
   applyVotes(); saveSetup();
+}
+
+export function selectDiff(i) {
+  S.myVote.diff = i; applyVotes(); saveSetup();
 }
 
 export function selectWeather(id, force) {
@@ -127,11 +140,14 @@ export function buildSetupUI() {
   [...$('mapCards').children].forEach((b, n) => { drawMapThumb(b.querySelector('canvas'), MAPS[n]); b.addEventListener('click', () => selectMap(MAPS[n])); });
   $('wxChips').innerHTML = WEATHERS.map((w) => '<button type="button" class="wxt" data-id="' + w.id + '"><i style="background:' + (WX_UI[w.id] || ['', '#ccc'])[1] + '"></i>' + esc((WX_UI[w.id] || [w.name])[0]) + '</button>').join('');
   [...$('wxChips').children].forEach((b) => b.addEventListener('click', () => selectWeather(b.dataset.id)));
+  $('dfChips').innerHTML = DIFFS.map((d) => '<button type="button" class="dft" data-id="' + d.id + '"><b>' + d.name + '</b><i>' + esc(d.sample) + '<br>' + esc(d.ex) + '</i></button>').join('');
+  [...$('dfChips').children].forEach((b, i) => b.addEventListener('click', () => selectDiff(i)));
   rollBotVotes();
   let saved = null; try { saved = JSON.parse(localStorage.getItem('turbotype-setup')); } catch (e) { saved = null; }
   const m = (saved && MAPS.find((x) => x.id === saved.map)) || MAPS[0];
   S.myVote.map = MAPS.indexOf(m);
   S.myVote.wx = saved && WEATHERS.some((w) => w.id === saved.wx) ? WEATHERS.findIndex((w) => w.id === saved.wx) : Math.max(0, WEATHERS.findIndex((w) => w.id === m.weather));
+  { const di = saved ? DIFFS.findIndex((d) => d.id === saved.diff) : -1; S.myVote.diff = di >= 0 ? di : DEFAULT_DIFF; }
   buildTrack(MAPS[tally('map', MAPS.length).lead]); loadBest();
   applyVotes();
 }

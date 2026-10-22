@@ -48,6 +48,7 @@ export function startRace() {
   buildItemBoxes();
   S.stats = { correct: 0, wrong: 0, times: [] };
   S.mood = { turboT: 0, stumbleT: 0, boost: 0, streak: 0, scrambleFlash: 0, attackT: 12 + Math.random() * 8, goldGap: 0 };
+  if (!(S.room && S.room.online)) S.wordSeed = Math.floor(Math.random() * 2 ** 31);
   initText();
   S.state = 'countdown'; S.goT = 0; S.camInit = false; S.hudCache = {};
   if (document.activeElement && document.activeElement.blur) document.activeElement.blur();

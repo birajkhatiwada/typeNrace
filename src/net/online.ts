@@ -4,6 +4,7 @@ import { S } from '../core/state';
 import { net } from './client';
 import { MAPS, WEATHERS } from '../config/maps';
 import { AVS, BGS } from '../config/avatars';
+import { DIFFS } from '../config/words';
 import { buildTrack } from '../world/tracks/track';
 import { showScreen } from '../ui/hud';
 import { toast } from '../ui/toast';
@@ -28,7 +29,7 @@ export const onlineEnabled = () => !!serverUrl();
 
 let wired = false;
 let pending: { resolve: () => void; reject: (e: Error) => void } | null = null;
-let sent = { ride: '', map: -1, wx: -1 };
+let sent = { ride: '', map: -1, wx: -1, diff: -1 };
 let lastSend = 0;
 
 function wire() {
@@ -72,16 +73,17 @@ function applyRoom(v: RoomView) {
   const others = v.players.filter((p) => p.id !== net.id);
   const mine = v.players.find((p) => p.id === net.id);
   S.onlineRivals = [0, 1, 2].map((i) => rivalOf(others[i]));
-  const wasStarted = S.room && S.room.started;
   S.room = {
     code: v.code, online: true, host: v.host === net.id, t0: 0,
-    ready: !!(mine && mine.ready), started: v.phase !== 'lobby',
-    members: [0, 1, 2].map((i) => { const p = others[i]; return { rv: S.onlineRivals[i], joined: !!p, picked: !!(p && p.ride), voted: !!(p && p.vote), ready: !!(p && p.ready), rideId: p && p.ride }; })
+    ready: !!(mine && mine.ready), started: v.phase !== 'lobby', round: v.round, phase: v.phase, again: !!(mine && mine.again),
+    members: [0, 1, 2].map((i) => { const p = others[i]; return { rv: S.onlineRivals[i], joined: !!p, picked: !!(p && p.ride), voted: !!(p && p.vote), ready: !!(p && p.ready), rideId: p && p.ride, again: !!(p && p.again) }; })
   };
-  S.botVote = [0, 1, 2].map((i) => ({ map: (others[i] && others[i].vote && others[i].vote.map) || 0, wx: (others[i] && others[i].vote && others[i].vote.wx) || 0 }));
+  S.botVote = [0, 1, 2].map((i) => { const vt = others[i] && others[i].vote; return { map: (vt && vt.map) || 0, wx: (vt && vt.wx) || 0, diff: vt ? vt.diff : 1 }; });
   S.tieSeed = 0.5;
-  if (v.phase === 'racing' && v.start && S.state === 'garage' && !wasStarted) { launch(v); return; }
+  // A new round (first start from the lobby, or a rematch) begins for everyone at the same time.
+  if (v.phase === 'racing' && v.start && v.round > (S.netRound || 0) && ['garage', 'finished'].includes(S.state)) { S.netRound = v.round; launch(v); return; }
   if (S.state === 'garage') { applyVotes(); updateRoomUI(); syncMine(); }
+  else updateAgainBtn();
 }
 
 /** Push my ride/map/weather choice to the server when it changed. */
@@ -89,7 +91,18 @@ export function syncMine() {
   if (!S.room || !S.room.online || S.room.started || !net.open) return;
   const ride = S.selectedRide && S.selectedRide.id;
   if (ride && ride !== sent.ride) { sent.ride = ride; net.send({ t: 'pick', ride }); }
-  if (S.myVote.map !== sent.map || S.myVote.wx !== sent.wx) { sent.map = S.myVote.map; sent.wx = S.myVote.wx; net.send({ t: 'vote', map: sent.map, wx: sent.wx }); }
+  if (S.myVote.map !== sent.map || S.myVote.wx !== sent.wx || S.myVote.diff !== sent.diff) { sent.map = S.myVote.map; sent.wx = S.myVote.wx; sent.diff = S.myVote.diff; net.send({ t: 'vote', map: sent.map, wx: sent.wx, diff: sent.diff }); }
+}
+
+/** "Race again" online: ask the server, which restarts everyone once all players have asked. */
+export function requestRematch() { net.send({ t: 'rematch' }); if (S.room) S.room.again = true; updateAgainBtn(); }
+
+export function updateAgainBtn() {
+  const b = document.getElementById('againBtn'); if (!b || !S.room || !S.room.online) return;
+  const others = S.room.members.filter((m) => m.joined);
+  const waiting = S.room.phase === 'racing' ? 'WAITING FOR OTHERS TO FINISH\u2026' : 'WAITING FOR ' + (others.filter((m) => !m.again).length + (S.room.again ? 0 : 1)) + ' PLAYER' + (others.filter((m) => !m.again).length + (S.room.again ? 0 : 1) === 1 ? '' : 'S') + '\u2026';
+  b.innerHTML = S.room.again ? waiting : 'RACE AGAIN &#9654;';
+  b.classList.toggle('waiting', !!S.room.again); b.disabled = !!S.room.again;
 }
 
 export function setReady(ready: boolean) { net.send({ t: 'ready', ready }); }
@@ -98,7 +111,9 @@ function launch(v: RoomView) {
   closeRoomTimer();
   const map = MAPS[v.start.map]; if (!S.MAP || S.MAP.id !== map.id) { buildTrack(map); loadBest(); }
   S.WX = WEATHERS[v.start.wx].id;
+  S.DIFF = DIFFS[v.start.diff].id; S.wordSeed = v.start.seed; // same words for every player
   audioStart(); startRace();
+  const ab = document.getElementById('againBtn'); if (ab) { ab.disabled = false; ab.classList.remove('waiting'); ab.innerHTML = 'RACE AGAIN &#9654;'; }
 }
 
 /** Create or join a room on the server, then show the garage. Rejects with a readable message. */
@@ -108,7 +123,7 @@ export async function enterOnline(kind: 'create' | 'join', code?: string) {
     const hint = setInterval(() => toast('Waking up the game server\u2026 this can take about a minute', '#b8860b'), 1500);
     try { await net.connect(serverUrl()!); } finally { clearInterval(hint); }
   }
-  sent = { ride: '', map: -1, wx: -1 };
+  sent = { ride: '', map: -1, wx: -1, diff: -1 }; S.netRound = 0;
   const p = S.profile;
   const done = new Promise<void>((resolve, reject) => { pending = { resolve, reject }; });
   S.state = 'garage';

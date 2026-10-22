@@ -4,7 +4,7 @@ import { RIDES, RIVALS } from '../config/rides';
 import { MAPS, WEATHERS } from '../config/maps';
 import { me, rivals } from '../core/player';
 
-export function rollBotVotes() { S.botVote = RIVALS.map(() => ({ map: Math.floor(Math.random() * MAPS.length), wx: Math.floor(Math.random() * WEATHERS.length) })); S.tieSeed = Math.random(); }
+export function rollBotVotes() { S.botVote = RIVALS.map(() => ({ map: Math.floor(Math.random() * MAPS.length), wx: Math.floor(Math.random() * WEATHERS.length), diff: Math.floor(Math.random() * 3) })); S.tieSeed = Math.random(); }
 
 export function voters() { const m = me(); return [{ key: 'you', av: m.av, color: m.color, ...S.myVote }].concat(rivals().map((r, i) => ({ key: r.name, av: r.av, color: r.color, ...S.botVote[i] })).filter((v, i) => !S.room || S.room.members[i].voted)); }
 

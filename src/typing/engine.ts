@@ -1,32 +1,36 @@
 // @ts-nocheck
 import { S } from '../core/state';
-import { cornerAt } from '../world/tracks/track';
-import { $, esc, pick } from '../utils/helpers';
-import { CONTRACTIONS, EASY } from '../config/words';
+import { $, esc, mulberry } from '../utils/helpers';
+import { CONTRACTIONS } from '../config/words';
+import { EASY_WORDS, MEDIUM_WORDS, HARD_WORDS } from '../config/wordlists';
 import { rideMul } from '../race/simulation';
 import { IMPULSE, VMAX } from '../config/tuning';
 import { toast } from '../ui/toast';
 import { sfx } from '../audio/audio';
 
+/** Next word of the race. Uses the race's seeded stream (S.cur.rng) so every player gets the same words. */
 function makeWord() {
-  const ahead = S.cur.words.slice(S.cur.wi).reduce((n, w) => n + w.t.length + 1, 0);
-  const est = S.player.dist + Math.max(S.player.speed, 9) * (ahead / 5);
-  const sym = cornerAt(est) || cornerAt(est + 8);
-  let t, gold = false;
-  if (sym) {
-    const r = Math.random(), a = pick(EASY), b = pick(EASY);
-    if (r < 0.2) t = '"' + a + ',"'; else if (r < 0.4) t = '(' + a + '!)'; else if (r < 0.55) t = a[0].toUpperCase() + a.slice(1) + '?';
-    else if (r < 0.7) t = a + '-' + b; else if (r < 0.85) t = a + (1 + Math.floor(Math.random() * 9)) + ';'; else t = pick(CONTRACTIONS);
+  const rnd = S.cur.rng, P = (a) => a[Math.floor(rnd() * a.length)];
+  const lvl = S.DIFF || 'medium';
+  const pool = lvl === 'easy' ? EASY_WORDS : lvl === 'medium' ? (rnd() < 0.7 ? MEDIUM_WORDS : EASY_WORDS) : (rnd() < 0.6 ? HARD_WORDS : MEDIUM_WORDS);
+  let t = P(pool), gold = false, sym = false;
+  const symP = lvl === 'easy' ? 0 : lvl === 'medium' ? 0.15 : 0.25;
+  if (rnd() < symP) {
+    sym = true;
+    const r = rnd(), a = P(EASY_WORDS), b = P(EASY_WORDS);
+    if (lvl === 'medium') {
+      if (r < 0.3) t = a[0].toUpperCase() + a.slice(1); else if (r < 0.55) t = a + ','; else if (r < 0.75) t = a + '-' + b; else if (r < 0.9) t = a + '.'; else t = a[0].toUpperCase() + a.slice(1) + '?';
+    } else if (r < 0.2) t = '"' + a + ',"'; else if (r < 0.4) t = '(' + a + '!)'; else if (r < 0.55) t = a[0].toUpperCase() + a.slice(1) + '?';
+    else if (r < 0.7) t = a + '-' + b; else if (r < 0.85) t = a + (1 + Math.floor(rnd() * 9)) + ';'; else t = P(CONTRACTIONS);
   } else {
-    t = pick(EASY);
     S.cur.sinceGold++;
-    if (S.cur.sinceGold >= S.cur.goldEvery && t.length >= 5) { gold = true; S.cur.sinceGold = 0; S.cur.goldEvery = 10 + Math.floor(Math.random() * 5); }
+    if (S.cur.sinceGold >= S.cur.goldEvery && t.length >= 5) { gold = true; S.cur.sinceGold = 0; S.cur.goldEvery = 10 + Math.floor(rnd() * 5); }
   }
   return { t, gold, scr: false, sym };
 }
 
 export function initText() {
-  S.cur = { words: [], wi: 0, ci: 0, clean: true, sinceGold: 0, goldEvery: 7, awarded: false };
+  S.cur = { words: [], wi: 0, ci: 0, clean: true, sinceGold: 0, goldEvery: 7, awarded: false, rng: mulberry(S.wordSeed | 0) };
   S.rowBase = 0; ensureWords();
 }
 
@@ -86,7 +90,7 @@ export function renderText() {
   $('text').innerHTML = html;
   const w = S.cur.words[S.cur.wi];
   const sym = w && w.sym;
-  $('terrain').textContent = sym ? 'Curve ahead: mind the symbols' : 'Straight: fast words';
+  $('terrain').textContent = sym ? 'Symbols: mind the punctuation' : 'Plain words: go fast';
   $('terrain').className = 'chip ' + (sym ? 'curve' : 'straight');
 }
 
