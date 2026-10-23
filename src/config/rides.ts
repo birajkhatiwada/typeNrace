@@ -21,6 +21,18 @@ import b_boat_speed_j from '../assets/boat/boat-speed-j.glb';
 import b_boat_tug_a from '../assets/boat/boat-tug-a.glb';
 import b_boat_sail_a from '../assets/boat/boat-sail-a.glb';
 import k_kart from '../assets/cars/kart-oobi.glb';
+import n_roadster from '../assets/new/roadster.glb';
+import n_gt from '../assets/new/gt.glb';
+import n_muscle from '../assets/new/muscle.glb';
+import n_stripe from '../assets/new/stripe.glb';
+import n_crusher from '../assets/new/crusher.glb';
+import n_pickup from '../assets/new/pickup.glb';
+import n_block from '../assets/new/block.glb';
+import n_cube from '../assets/new/cube.glb';
+import n_hauler from '../assets/new/hauler.glb';
+import n_bmx from '../assets/new/bmx.glb';
+import n_trail from '../assets/new/trail.glb';
+import n_plane from '../assets/new/plane.glb';
 
 export const RIDES = [
   { id: 'ember', name: 'Ember Truck', kind: 'Truck', glb: gRed, color: '#ff8a3d', trait: 'The all-rounder. No weak spots, no tricks.', speed: 3, handling: 3, boost: 3 },
@@ -44,6 +56,18 @@ export const RIDES = [
   { id: 'storm', name: 'Storm Cutter', kind: 'Boat', glb: b_boat_speed_j, tex: 'boat', color: '#e8452c', trait: 'Long and fast. Forgives a few typos.', speed: 4, handling: 3, boost: 4 },
   { id: 'tug', name: 'Harbor Tug', kind: 'Boat', glb: b_boat_tug_a, tex: 'boat', color: '#f5c431', trait: 'Chunky and steady. Barely slows on mistakes.', speed: 2, handling: 4, boost: 4 },
   { id: 'sail', name: 'Gale Sail', kind: 'Boat', glb: b_boat_sail_a, tex: 'boat', color: '#f2f5ff', trait: 'Catches the wind. Great handling, modest turbo.', speed: 3, handling: 5, boost: 2 },
+  { id: 'roadster', name: 'Azure Roadster', kind: 'Sports', glb: n_roadster, tex: 'own', color: '#2a3cc4', trait: 'Open-top and nimble. Great in the bends.', speed: 4, handling: 4, boost: 2 },
+  { id: 'gt', name: 'Crimson GT', kind: 'Sports', glb: n_gt, tex: 'own', color: '#c42a2a', trait: 'Balanced grand tourer with a strong top end.', speed: 4, handling: 3, boost: 3 },
+  { id: 'muscle', name: 'Lemon Muscle', kind: 'Sports', glb: n_muscle, tex: 'own', color: '#f5e033', trait: 'All engine. Hard to steer, impossible to catch.', speed: 5, handling: 2, boost: 2 },
+  { id: 'stripe', name: 'Stripe Muscle', kind: 'Sports', glb: n_stripe, tex: 'own', color: '#7a8aa8', trait: 'Classic stripes, steady grip, quiet turbo.', speed: 4, handling: 3, boost: 3 },
+  { id: 'crusher', name: 'Crusher', kind: 'Truck', glb: n_crusher, tex: 'own', color: '#2a56c4', trait: 'Monster wheels. Shrugs off typos, slow to build speed.', speed: 2, handling: 3, boost: 5 },
+  { id: 'pickup', name: 'Forest Pickup', kind: 'Truck', glb: n_pickup, tex: 'own', color: '#2f5a3a', trait: 'Dependable workhorse. Turbo fills quickly.', speed: 3, handling: 3, boost: 4 },
+  { id: 'block', name: 'Brick Red', kind: 'Sedan', glb: n_block, tex: 'own', color: '#e04545', trait: 'Boxy and cheerful. Forgiving in corners.', speed: 2, handling: 4, boost: 3 },
+  { id: 'cube', name: 'Cube Blue', kind: 'Sedan', glb: n_cube, tex: 'own', color: '#3a96ff', trait: 'Light and tidy. Very easy to control.', speed: 3, handling: 5, boost: 2 },
+  { id: 'hauler', name: 'Rust Hauler', kind: 'Truck', glb: n_hauler, tex: 'own', color: '#c0532c', trait: 'Slow but tough. Big turbo for late sprints.', speed: 2, handling: 3, boost: 5 },
+  { id: 'bmx', name: 'BMX Rocket', kind: 'Bike', glb: n_bmx, tex: 'own', color: '#ff3b3b', trait: 'Tiny and fast to turn. Weak turbo.', speed: 3, handling: 5, boost: 2 },
+  { id: 'trail', name: 'Trail Biker', kind: 'Bike', glb: n_trail, tex: 'own', color: '#f2b82a', trait: 'Quick and light, rewards clean typing.', speed: 4, handling: 4, boost: 2 },
+  { id: 'plane', name: 'Sky Racer', kind: 'Plane', glb: n_plane, tex: 'own', color: '#2a3cc4', trait: 'Skims above the track. Fast and floaty.', speed: 5, handling: 3, boost: 3 },
   { id: 'kart', name: 'Oobi Kart', kind: 'Kart', glb: k_kart, tex: 'car', color: '#ffb4ec', trait: 'Tiny and twitchy. Quick turn-in, light turbo.', speed: 3, handling: 5, boost: 2 }
 ];
 

@@ -22,7 +22,7 @@ import { buildGarageWorld } from '../world/garage';
 import { initLights } from '../world/atmosphere';
 import { buildRaceWorld } from '../world/raceWorld';
 import { makeVehicle } from '../vehicles/vehicle';
-import { buildGarageUI, buildSetupUI, renderRideCards, renderThumbs, selectMap, selectRide, selectWeather, toGarage, toGaragePage, updateSum } from '../ui/garage';
+import { buildGarageUI, buildSetupUI, renderRideCards, renderThumbs, selectMap, selectRide, selectWeather, toGarage, toGaragePage, updateSum, initSteps } from '../ui/garage';
 import { layout } from '../render/layout';
 import { AVS, BGS } from '../config/avatars';
 import { $ } from '../utils/helpers';
@@ -44,7 +44,7 @@ export async function boot() {
   const defs = { straight: gStraight, corner: gCorner, finish: gFinish, forest: gForest, empty: gEmpty };
   RIDES.forEach((r) => { defs[r.id] = r.glb; });
   Object.assign(defs, NATURE_GLB, CITY_GLB, IND_GLB, COM_GLB, SPACE_GLB, HEXBOAT_GLB, PROP_GLB, GP_GLB);
-  for (const key of Object.keys(defs)) { const rd = RIDES.find((r) => r.id === key); S.texUrl = key.startsWith('c_') ? cityTex : key.startsWith('i_') ? indTex : key.startsWith('m_') ? comTex : key.startsWith('b_') || (rd && rd.tex === 'boat') ? boatTex : (rd && rd.tex === 'car') || key.startsWith('k_') ? carTex : colormapUrl; models[key] = await parseGlb(defs[key]); }
+  for (const key of Object.keys(defs)) { const rd = RIDES.find((r) => r.id === key); S.texUrl = key.startsWith('c_') ? cityTex : key.startsWith('i_') ? indTex : key.startsWith('m_') ? comTex : key.startsWith('b_') || (rd && rd.tex === 'boat') ? boatTex : (rd && rd.tex === "car") || key.startsWith('k_') ? carTex : colormapUrl; models[key] = await parseGlb(defs[key]); }
   buildGarageWorld();
   initLights();
   buildRaceWorld();
@@ -54,7 +54,7 @@ export async function boot() {
   S.state = 'profile';
   showScreen('profile');
   let savedRide = null; try { savedRide = (JSON.parse(localStorage.getItem('turbotype-setup')) || {}).ride; } catch (e) { savedRide = null; }
-  selectRide(RIDES.find((r) => r.id === savedRide) || RIDES[0]);
+  selectRide(RIDES.find((r) => r.id === savedRide) || RIDES[0]); initSteps();
   layout();
   try { renderThumbs(); } catch (e) { /* thumbnails are optional */ }
   el.loading.hidden = true;
