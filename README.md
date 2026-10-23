@@ -29,3 +29,6 @@ Stacking: the same curse refreshes its timer; slows use the strongest, never mul
 ## Credits
 
 Power icons: [Fluent Emoji](https://github.com/microsoft/fluentui-emoji) by Microsoft (MIT licence), 3D style.
+
+### Vehicle credits
+Extra vehicles: Free Low Poly Vehicles Pack by Rgsdev (CC0), Low Poly Cars by Devil's Work.shop (Ajay Karat), Free Low Poly Bike Models (VOID1 Gaming), Race Plane (license unverified, replace if you publish widely).

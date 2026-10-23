@@ -29,13 +29,15 @@ export function renderRideCards() {
   const bots = botRideList(), pick = {};
   bots.forEach((r, i) => { if (!S.room || S.room.members[i].picked) pick[r.id] = rivals()[i]; });
   let h = '';
-  RIDES.forEach((r) => {
+  const PG = 20, pages = Math.ceil(RIDES.length / PG);
+  RIDES.slice((S.gPage || 0) * PG, (S.gPage || 0) * PG + PG).forEach((r) => {
     const p = pick[r.id], on = r.id === S.selectedRide.id;
     const tag = on ? '<b>P1</b>' : p ? '<b style="background:' + p.color + ';color:#fff">' + p.av + ' ' + esc(p.name) + '</b>' : '';
     const st = p && !on ? ' style="outline:2px solid ' + p.color + ';outline-offset:-2px;background:linear-gradient(160deg,' + p.color + '88,' + p.color + '22)"' : '';
     h += '<button type="button" class="cell' + (on ? ' sel' : '') + '" data-id="' + r.id + '" aria-pressed="' + on + '" aria-label="' + esc(r.name) + '"' + st + '><img alt="" src="' + (thumbURL[r.id] || BLANK) + '">' + tag + '</button>';
   });
-  for (let i = RIDES.length; i % 5; i++) h += '<div class="cell empty"></div>';
+  for (let i = Math.min(PG, RIDES.length - (S.gPage || 0) * PG); i < PG; i++) h += '<div class="cell empty"></div>';
+  { const dots = $('gDots'); dots.innerHTML = Array.from({ length: pages }, (_, i) => '<i class="' + (i === (S.gPage || 0) ? 'on' : '') + '" data-p="' + i + '"></i>').join(''); [...dots.children].forEach((d) => d.addEventListener('click', () => { S.gPage = +d.dataset.p; renderRideCards(); })); }
   const g = $('cards'); g.innerHTML = h;
   [...g.querySelectorAll('button')].forEach((b) => b.addEventListener('click', () => selectRide(RIDES.find((r) => r.id === b.dataset.id))));
   const m = me();
@@ -77,6 +79,7 @@ export function applyVotes() {
   S.WX = WEATHERS[tw.lead].id;
   S.DIFF = DIFFS[tally('diff', 3).lead].id;
   renderVotes(); renderRideCards(); updateSum(); syncMine();
+  if (S.gStep === 2) refreshWxPrev();
 }
 
 function stepRide(d) {
@@ -84,7 +87,7 @@ function stepRide(d) {
 }
 
 export function selectRide(ride) {
-  S.selectedRide = ride; S.garagePop = 1; S.garageIdle = Math.max(S.garageIdle, 0.6);
+  S.selectedRide = ride; S.gPage = Math.floor(RIDES.indexOf(ride) / 20); S.garagePop = 1; S.garageIdle = Math.max(S.garageIdle, 0.6);
   RIDES.forEach((r) => { garageModels[r.id].group.visible = r.id === ride.id; });
   $('gName').textContent = ride.name;
   $('gTrait').textContent = ride.trait;
@@ -136,7 +139,7 @@ const bestOf = (id) => { try { return parseFloat(localStorage.getItem('turbotype
 function refreshBests() { document.querySelectorAll('[data-best]').forEach((n) => { const v = bestOf(n.dataset.best); n.textContent = v ? 'Best ' + fmtTime(v) : 'No time yet'; }); }
 
 export function buildSetupUI() {
-  $('mapCards').innerHTML = MAPS.map((m) => '<button type="button" class="map" data-id="' + m.id + '" aria-label="' + esc(m.name) + '"><canvas width="256" height="144"></canvas><span>' + esc(m.name) + '</span></button>').join('');
+  $('mapCards').innerHTML = MAPS.map((m) => '<button type="button" class="map" data-id="' + m.id + '" aria-label="' + esc(m.name) + '"><canvas width="256" height="144"></canvas><span>' + esc(m.name) + '</span><small>' + m.laps + ' laps \u00b7 ' + esc(m.blurb || '') + '</small></button>').join('');
   [...$('mapCards').children].forEach((b, n) => { drawMapThumb(b.querySelector('canvas'), MAPS[n]); b.addEventListener('click', () => selectMap(MAPS[n])); });
   $('wxChips').innerHTML = WEATHERS.map((w) => '<button type="button" class="wxt" data-id="' + w.id + '"><i style="background:' + (WX_UI[w.id] || ['', '#ccc'])[1] + '"></i>' + esc((WX_UI[w.id] || [w.name])[0]) + '</button>').join('');
   [...$('wxChips').children].forEach((b) => b.addEventListener('click', () => selectWeather(b.dataset.id)));
@@ -193,7 +196,7 @@ export function renderThumbs() {
   r2.dispose(); renderRideCards();
 }
 
-export function toGaragePage(code, joining) { S.state = 'garage'; showScreen('garage'); layout(); openRoom(code || mkCode(), !!joining); }
+export function toGaragePage(code, joining) { S.state = 'garage'; showScreen('garage'); layout(); openRoom(code || mkCode(), !!joining); setStep(1); }
 
 export function toGarage() {
   for (const b of S.itemBoxes) raceScene.remove(b.mesh); S.itemBoxes = [];
@@ -201,6 +204,26 @@ export function toGarage() {
   for (const r of S.racers) raceScene.remove(r.v.group);
   S.racers = []; S.player = null; S.camInit = false; S.mini = null;
   if (onlineEnabled() && S.room && S.room.online) { leaveOnline(); enterOnline('create').catch(() => { S.state = 'profile'; showScreen('profile'); }); } else openRoom(mkCode(), false);
-  layout();
+  layout(); setStep(1);
 }
 
+
+
+// ---- garage steps: 1 arena, 2 weather (+difficulty), 3 ride ----
+const TITLES = ['Choose Your Arena!', 'Pick the Weather!', 'Choose Your Ride!'];
+export function setStep(n) {
+  S.gStep = n; $('sk').dataset.s = String(n); $('gTitle').firstElementChild.textContent = TITLES[n - 1];
+  $('nextBtn').hidden = n === 3; $('startBtn').style.display = n === 3 ? '' : 'none';
+  RIDES.forEach((r) => { if (garageModels[r.id]) garageModels[r.id].group.visible = n === 3 && r.id === S.selectedRide.id; });
+  if (n === 2) refreshWxPrev();
+}
+export function refreshWxPrev() {
+  const cv = $('wxPrev').querySelector('canvas'); drawMapThumb(cv, S.MAP || MAPS[0]);
+  $('wxFx').className = 'wxfx ' + (S.WX || 'clear');
+}
+export function initSteps() {
+  $('nextBtn').addEventListener('click', () => { if (S.gStep < 3) setStep(S.gStep + 1); });
+  $('backBtn').addEventListener('click', (e) => { if (S.gStep > 1) { e.stopImmediatePropagation(); setStep(S.gStep - 1); } }, true);
+  window.addEventListener('keydown', (e) => { if (S.state === 'garage' && S.gStep < 3 && e.key === 'Enter') { e.preventDefault(); setStep(S.gStep + 1); } });
+  setStep(1);
+}

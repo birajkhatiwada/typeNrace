@@ -171,6 +171,26 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--cyan); outl
 .rb { height: 64px; border-radius: 32px; display: flex; align-items: center; justify-content: center; font: italic 800 22px var(--pop); padding: 0 38px; border: 3px solid #fff; }
 .rb.main.waiting { background: rgba(10,10,16,.85); color: #ffd24a; border-color: #ffd24a; box-shadow: none; padding: 0 28px; font-size: 15px; cursor: default; }
 .rb.ghost { background: rgba(10,10,16,.78); border-color: rgba(255,255,255,.7); color: #fff; } .rb.main { background: linear-gradient(180deg,#ffe27a,#ffc21a); color: #1a1423; box-shadow: 0 0 22px rgba(255,210,74,.5); padding: 0 54px; }
+
+/* ---------- garage steps ---------- */
+.sk[data-s="1"] [data-st]:not([data-st~="1"]), .sk[data-s="2"] [data-st]:not([data-st~="2"]), .sk[data-s="3"] [data-st]:not([data-st~="3"]) { display: none !important; }
+.steps { left: 225px; top: 76px; display: flex; gap: 6px; } .steps span { padding: 2px 12px; background: rgba(0,0,0,.6); color: #8d92a8; font: italic 700 12px var(--pop); letter-spacing: 1px; } .sk[data-s="1"] .steps span:nth-child(1), .sk[data-s="2"] .steps span:nth-child(2), .sk[data-s="3"] .steps span:nth-child(3) { background: var(--gold); color: #1a1423; }
+#nextBtn { right: -10px; width: 190px; padding-left: 24px; }
+.sk .maps { left: 330px; top: 140px; width: 860px; grid-template-columns: repeat(4, 215px); background: rgba(0,0,0,.55); }
+.sk .map canvas { width: 88%; margin-top: 10px; } .sk .map span { font-size: 13px; height: 26px; line-height: 26px; }
+.sk .map small { display: block; font: 600 10px var(--pop); color: #aeb3c8; padding-bottom: 8px; }
+.sk .wxcol { left: 330px; top: 140px; width: 860px; display: flex; gap: 10px; } .sk .wxt { flex: 1; width: auto; height: 74px; margin: 0; padding-top: 12px; font-size: 13px; }
+.wxprev { left: 330px; top: 230px; width: 860px; height: 260px; overflow: hidden; border: 2px solid rgba(255,255,255,.6); background: #000; } .wxprev canvas { width: 100%; height: 100%; display: block; opacity: .9; } .wxfx { position: absolute; inset: 0; pointer-events: none; }
+.wxfx.rain { background: linear-gradient(rgba(40,60,90,.35),rgba(40,60,90,.35)), repeating-linear-gradient(105deg, transparent 0 9px, rgba(200,225,255,.55) 9px 10px); background-size: auto, 40px 40px; animation: wxr .35s linear infinite; }
+@keyframes wxr { to { background-position: 0 0, -12px 40px; } }
+.wxfx.snow { background: radial-gradient(circle, #fff 2px, transparent 3px) 0 0/38px 38px, radial-gradient(circle, #fff 1.5px, transparent 2.5px) 17px 19px/29px 29px, rgba(220,235,255,.18); animation: wxs 3s linear infinite; }
+@keyframes wxs { to { background-position: 10px 38px, 7px 48px, 0 0; } }
+.wxfx.sand { background: linear-gradient(90deg, rgba(210,160,90,.55), rgba(210,160,90,.3)), repeating-linear-gradient(8deg, transparent 0 14px, rgba(255,220,160,.25) 14px 16px); }
+.wxfx.fog { background: linear-gradient(rgba(200,206,218,.75), rgba(200,206,218,.5)); }
+.sk .dfcol { left: 330px; top: 530px; width: 860px; display: flex; gap: 10px; } .sk .dft { flex: 1; width: auto; margin: 0; }
+.sk .grid { left: 690px; top: 90px; width: 600px; grid-template-columns: repeat(5, 120px); grid-auto-rows: 92px; }
+.sk .cell { } .sk .cell img { width: 108%; }
+.gdots { left: 690px; top: 468px; width: 600px; display: flex; justify-content: center; gap: 10px; } .gdots i { width: 12px; height: 12px; border-radius: 50%; background: rgba(255,255,255,.3); cursor: pointer; } .gdots i.on { background: var(--gold); box-shadow: 0 0 8px var(--gold); }
 </style>
 
 <div id="app">
@@ -195,28 +215,32 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--cyan); outl
   <!-- 2. Ride, track and weather vote -->
   <section id="garage" class="screen" hidden>
     <div class="fit">
-      <div class="sk">
+      <div class="sk" data-s="1" id="sk">
         <div class="rc" id="roomCode"><small>ROOM CODE</small><b id="rcTxt">----</b><button type="button" id="rcCopy">COPY</button></div>
         <div class="glab" style="left:112px;top:48px">Joined</div>
+        <div class="steps" id="steps"><span>1 ARENA</span><span>2 WEATHER</span><span>3 RIDE</span></div>
         <div class="alts" id="joined"></div>
         <div class="rmsg" id="roomMsg"></div>
-        <div class="title"><span>Choose Your Ride!</span></div>
-        <p class="desc" id="gTrait"></p>
-        <h2 class="gname" id="gName">Ember Truck</h2>
-        <div class="stats">
+        <div class="title" id="gTitle"><span>Choose Your Ride!</span></div>
+        <p class="desc" data-st="3" id="gTrait"></p>
+        <h2 class="gname" data-st="3" id="gName">Ember Truck</h2>
+        <div class="stats" data-st="3">
           <div class="stat"><b class="lab2">SPEED</b><span class="pips" id="gSpeed"></span></div>
           <div class="stat"><b class="lab2">HANDLING</b><span class="pips" id="gHandling"></span></div>
           <div class="stat"><b class="lab2">BOOST</b><span class="pips" id="gBoost"></span></div>
         </div>
-        <div class="grid" id="cards" role="group" aria-label="Choose your ride"></div>
-        <div class="glab" style="left:743px;top:530px">Tracks</div>
-        <div class="maps" id="mapCards" role="group" aria-label="Vote for a track"></div>
-        <div class="glab" style="left:1231px;top:68px">Weather</div>
-        <div class="wxcol" id="wxChips" role="group" aria-label="Vote for the weather"></div>
-        <div class="glab" style="left:1226px;top:470px">Difficulty</div>
-        <div class="dfcol" id="dfChips" role="group" aria-label="Vote for the word difficulty"></div>
+        <div class="gdots" id="gDots" data-st="3"></div>
+        <div class="grid" data-st="3" id="cards" role="group" aria-label="Choose your ride"></div>
+        <div class="glab" data-st="1" style="left:330px;top:100px">Pick an arena</div>
+        <div class="maps" data-st="1" id="mapCards" role="group" aria-label="Vote for a track"></div>
+        <div class="glab" data-st="2" style="left:330px;top:100px">Pick the weather</div>
+        <div class="wxprev" data-st="2" id="wxPrev"><canvas width="840" height="260"></canvas><div class="wxfx" id="wxFx"></div></div>
+        <div class="wxcol" data-st="2" id="wxChips" role="group" aria-label="Vote for the weather"></div>
+        <div class="glab" data-st="2" style="left:330px;top:500px">Word difficulty</div>
+        <div class="dfcol" data-st="2" id="dfChips" role="group" aria-label="Vote for the word difficulty"></div>
       </div>
       <button type="button" class="gbtn" id="backBtn"><span class="t" style="color:#ffd24a;font-size:34px">&#9664;</span><span class="k">B</span></button>
+      <button type="button" class="gbtn" id="nextBtn" hidden><span class="k">A</span><span class="t">NEXT</span></button>
       <button type="button" class="gbtn" id="startBtn"><span class="k">A</span><span class="t">OK</span></button>
       <div class="credit">MODELS BY: Kenney (CC0) &middot; Mechanized Magic by Dumivid (CC0) &middot; game-icons.net by Lorc and Delapouite (CC BY 3.0)</div>
     </div>

@@ -58,6 +58,7 @@ export function updateRacer(r, dt, t) {
   r.v.group.rotation.set(-r.pitch, r.yaw, 0, 'YXZ');
   const spin = (r.eff * dt) / 0.4;
   for (const wh of r.v.wheels) wh.rotation.x += spin;
+  if (r.ride.kind === 'Plane') { r.v.model.position.y = 0.45 + Math.sin(t * 2.0 + r.seed) * 0.08; r.v.model.rotation.z = Math.sin(t * 1.4 + r.seed) * 0.06; }
   if (r.ride.kind === 'Boat') { r.v.model.position.y = -0.85 + Math.sin(t * 2.3 + r.seed) * 0.07; r.v.model.rotation.z = Math.sin(t * 1.7 + r.seed) * 0.03; r.v.model.rotation.x = Math.sin(t * 2.1 + r.seed * 2) * 0.02 - Math.min(1, r.eff / 25) * 0.04; }
   else r.v.model.position.y = (S.MAP.style === 'river' ? -0.5 : 0) + Math.sin(t * 14 + r.seed) * 0.012 * Math.min(1, r.eff / 10);
 }
