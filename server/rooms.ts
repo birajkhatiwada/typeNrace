@@ -51,6 +51,10 @@ export class Rooms {
         const r = this.room(id); if (!r || r.phase !== 'racing') return;
         r.players.forEach((_, o) => { if (o !== id) this.send(o, { t: 'progress', id, s: m.s }); }); return;
       }
+      case 'attack': {   // a power used on another racer: relay it to that player only
+        const r = this.room(id); if (!r || r.phase !== 'racing' || !r.players.has(m.to) || m.to === id) return;
+        this.send(m.to, { t: 'attack', from: id, k: String(m.k).slice(0, 16), d: typeof m.d === 'number' ? m.d : undefined, refl: !!m.refl }); return;
+      }
       case 'finish': {
         const r = this.room(id); if (!r || r.phase !== 'racing') return;
         r.finished.add(id); r.players.forEach((_, o) => { if (o !== id) this.send(o, { t: 'finish', id, time: m.time }); });

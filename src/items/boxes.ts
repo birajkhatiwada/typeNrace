@@ -4,7 +4,8 @@ import { S } from '../core/state';
 import { raceScene } from '../render/scenes';
 import { pointAt } from '../world/tracks/track';
 import { giveItem, rollItem, rollRivalItem } from './inventory';
-import { aheadOf, aiDebuff, hitPlayer } from './effects';
+import { aheadOf, botHit, hitPlayer } from './effects';
+import { POWERS } from './definitions';
 
 function boxTexture() {
   const cv = document.createElement('canvas'); cv.width = cv.height = 128; const c = cv.getContext('2d');
@@ -64,16 +65,28 @@ function collectBox(b, r) {
   if (!r.isPlayer && r.items.length < 2) { r.items.push(rollRivalItem(r)); r.useT = 2.5 + Math.random() * 4; }
 }
 
+const BOT_SELF_BOOST = { turbo: 2.5, triple: 3, nitro: 3, skip: 1, easy: 1.5, magnet: 1, autocorrect: 1.5, freeze: 1.5 };
+
+/** Rivals use the same powers on the same rules: attacks go to whoever is directly ahead (1st place for Torpedo and Swap). */
 export function updateRivalItems(r, dt) {
   if (r.boostT > 0) r.boostT -= dt;
+  for (const f of r.fx || []) f.t -= dt;
+  if (r.fx && r.fx.length) r.fx = r.fx.filter((f) => f.t > 0);
   if (!r.items || !r.items.length || S.state !== 'racing') return;
   r.useT -= dt; if (r.useT > 0) return;
-  const it = r.items.shift(); r.useT = 3 + Math.random() * 4;
-  if (it === 'turbo') { r.boostT = 2.2; return; }
-  let tgt;
-  if (it === 'torpedo') tgt = S.racers.slice().sort((a, b) => b.dist - a.dist)[0];
-  else tgt = aheadOf(r)[0];
-  if (!tgt || tgt === r) { r.boostT = 1.5; return; }
-  if (tgt.isPlayer) hitPlayer(it, r); else aiDebuff(tgt, it);
+  const it = r.items[0], p = POWERS[it]; r.useT = 3 + Math.random() * 4;
+  if (p.kind === 'self') {
+    r.items.shift();
+    if (it === 'shield') r.shield = true; else if (it === 'mirror') r.mirror = true; else if (it === 'cleanse') r.fx = [];
+    else if (it === 'lucky') r.items.unshift(rollRivalItem() === 'lucky' ? 'turbo' : rollRivalItem());
+    else r.boostT = BOT_SELF_BOOST[it] || 1.5;
+    return;
+  }
+  const ahead = aheadOf(r);
+  let tg;
+  if (p.kind === 'ahead') tg = ahead.slice(0, 1); else if (p.kind === 'ahead2') tg = ahead.slice(0, 2); else if (p.kind === 'all') tg = ahead;
+  else { const l = S.racers.filter((o) => o !== r).sort((a, b) => b.dist - a.dist)[0]; tg = l && l.dist > r.dist ? [l] : []; }
+  if (!tg.length) { r.useT = 1.5; return; }       // nobody to hit: hold it until someone is ahead
+  r.items.shift();
+  for (const t of tg) { if (t.isPlayer) hitPlayer(it, r); else botHit(t, it, r); }
 }
-
