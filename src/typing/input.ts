@@ -25,13 +25,15 @@ export function onKey(e) {
   const capsOn = !!(e.getModifierState && e.getModifierState('CapsLock'));
   const w = S.cur.words[S.cur.wi];
   const expected = S.cur.ci < w.t.length ? w.t[S.cur.ci] : ' ';
-  const hadAuto = S.items.autoOn;
-  if (e.key === expected) {
-    onCorrect(); S.cur.ci++;
+  const hadAuto = S.items.autoN > 0;
+  if (e.key === expected && S.items.twiceT > 0 && S.cur.ci < w.t.length && S.cur.tw === 0) {
+    onCorrect(); S.cur.tw = 1;   // Twice Curse: every letter has to be typed twice
+  } else if (e.key === expected) {
+    onCorrect(); S.cur.tw = 0; S.cur.ci++;
     if (S.cur.ci === w.t.length && w.gold && S.cur.clean && !S.cur.awarded) { S.cur.awarded = true; grantItem(); }
     if (S.cur.ci > w.t.length) { S.cur.wi++; S.cur.ci = 0; S.cur.clean = true; S.cur.awarded = false; ensureWords(); }
-  } else if (S.items.autoOn) {
-    S.items.autoOn = false; toast('Autocorrect fixed that typo', '#7be88a'); sfx('item'); S.cur.ci++;
+  } else if (S.items.autoN > 0) {
+    S.items.autoN--; toast('Autocorrect fixed that typo' + (S.items.autoN ? ' (' + S.items.autoN + ' left)' : ''), '#7be88a'); sfx('item'); S.cur.ci++; S.cur.tw = 0;
     if (S.cur.ci > w.t.length) { S.cur.wi++; S.cur.ci = 0; S.cur.clean = true; S.cur.awarded = false; ensureWords(); }
   } else onWrong();
   if (S.items.magnetT > 0) pullGold();

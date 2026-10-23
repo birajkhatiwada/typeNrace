@@ -4,6 +4,7 @@ import { FRICTION, IMPULSE } from '../config/tuning';
 import { clamp } from '../utils/helpers';
 import { updateRivalItems } from '../items/boxes';
 import { pointAt } from '../world/tracks/track';
+import { slowMul, botMul } from '../items/effects';
 
 function wpm2speed(wpm) { return (IMPULSE * (wpm * 5 / 60)) / FRICTION; }
 
@@ -22,6 +23,7 @@ export function updateRacer(r, dt, t) {
     let eff = v;
     if (S.mood.turboT > 0) eff *= 1.45;
     if (S.mood.stumbleT > 0) eff *= 0.65;
+    eff *= slowMul();
     r.eff = eff;
   } else if (r.remote) {
     // driven by the other player's reported progress; ease toward it
@@ -33,7 +35,7 @@ export function updateRacer(r, dt, t) {
     const rb = clamp(gap / 100, -0.2, 0.2);
     let target = wpm2speed(r.wpm) * rideMul(r.ride) * (1 + r.noise + rb);
     if (r.slowT > 0) { target *= 0.55; r.slowT -= dt; }
-    if (r.dbT > 0) { target *= r.dbMul; r.dbT -= dt; }
+    target *= botMul(r);
     if (r.boostT > 0) target *= 1.35;
     updateRivalItems(r, dt);
     r.speed += (target - r.speed) * (1 - Math.exp(-1.6 * dt));

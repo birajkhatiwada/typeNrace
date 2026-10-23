@@ -9,8 +9,7 @@ import { engineUpdate, sfx } from '../audio/audio';
 import { el, updateHud } from '../ui/hud';
 import { toast } from '../ui/toast';
 import { renderText } from '../typing/engine';
-import { pick } from '../utils/helpers';
-import { hitPlayer } from '../items/effects';
+import { updateRoll } from '../items/effects';
 import { updateRacer } from '../race/simulation';
 import { showResults } from '../ui/results';
 import { updateItemBoxes } from '../items/boxes';
@@ -58,15 +57,13 @@ export function frame(now) {
     S.mood.turboT = Math.max(0, S.mood.turboT - dt); S.mood.stumbleT = Math.max(0, S.mood.stumbleT - dt);
     S.mood.scrambleFlash = Math.max(0, S.mood.scrambleFlash - dt); S.errFlash = Math.max(0, S.errFlash - dt);
     S.mood.attackT -= dt;
-    const fx = S.items, fogWas = fx.fogT > 0;
-    fx.nitroT = Math.max(0, fx.nitroT - dt); fx.magnetT = Math.max(0, fx.magnetT - dt); fx.freezeT = Math.max(0, fx.freezeT - dt); fx.fogT = Math.max(0, fx.fogT - dt);
+    const fx = S.items, fogWas = fx.fogT > 0, twiceWas = fx.twiceT > 0;
+    fx.nitroT = Math.max(0, fx.nitroT - dt); fx.magnetT = Math.max(0, fx.magnetT - dt); fx.freezeT = Math.max(0, fx.freezeT - dt);
+    fx.fogT = Math.max(0, fx.fogT - dt); fx.twiceT = Math.max(0, fx.twiceT - dt);
+    for (const s of fx.slow) s.t -= dt; if (fx.slow.length) fx.slow = fx.slow.filter((s) => s.t > 0);
     if (fx.tripleN > 0) { fx.tripleT -= dt; if (fx.tripleT <= 0) { S.mood.turboT = Math.max(S.mood.turboT, 1.4); fx.tripleN--; fx.tripleT = 3.2; toast('Turbo burst' + (fx.tripleN ? ' (' + fx.tripleN + ' left)' : ''), '#ffd23f'); sfx('turbo'); } }
-    if (fogWas && fx.fogT <= 0) renderText();
-    if (S.mood.attackT <= 0 && !(S.room && S.room.online)) {
-      S.mood.attackT = 14 + Math.random() * 10;
-      const who = pick(S.racers.filter((r) => !r.isPlayer));
-      hitPlayer('scramble', who);
-    }
+    if ((fogWas && fx.fogT <= 0) || (twiceWas && fx.twiceT <= 0)) { if (twiceWas && fx.twiceT <= 0) S.cur.tw = 0; renderText(); }
+    updateRoll(dt);
   }
   if (S.state === 'finished') { S.player.speed += (14 - S.player.speed) * Math.min(1, dt); }
   renderer.toneMappingExposure = 1;

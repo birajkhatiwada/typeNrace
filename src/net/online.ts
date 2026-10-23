@@ -11,6 +11,7 @@ import { toast } from '../ui/toast';
 import { applyVotes, renderRideCards } from '../ui/garage';
 import { updateRoomUI, closeRoomTimer } from '../rooms/room';
 import { startRace } from '../race/setup';
+import { receiveAttack } from '../items/effects';
 import { audioStart } from '../audio/audio';
 import { layout } from '../render/layout';
 import { loadBest } from '../storage/best';
@@ -60,8 +61,10 @@ function handle(m: ServerMsg) {
   }
   if (m.t === 'progress') {
     const rc = S.racers && S.racers.find((x: any) => x.pid === m.id);
-    if (rc) { rc.netDist = m.s.dist; rc.netSpeed = m.s.speed; }
+    if (rc) { rc.netDist = m.s.dist; rc.netSpeed = m.s.speed; rc.netStatus = m.s.status || []; }
     return;
+  }
+  if (m.t === 'attack') { receiveAttack(m); return;
   }
   if (m.t === 'finish') {
     const rc = S.racers && S.racers.find((x: any) => x.pid === m.id);
@@ -135,11 +138,21 @@ export async function enterOnline(kind: 'create' | 'join', code?: string) {
 
 export function leaveOnline() { if (net.open) net.send({ t: 'leave' }); S.room = null; }
 
+/** My active effects as short strings ("ink:2.1", "shield"), so other players can show them next to my name. */
+function myStatus(): string[] {
+  const I = S.items, out: string[] = [];
+  for (const s of I.slow) if (s.t > 0) out.push(s.k + ':' + s.t.toFixed(1));
+  if (I.fogT > 0) out.push('fog:' + I.fogT.toFixed(1)); if (I.twiceT > 0) out.push('twice:' + I.twiceT.toFixed(1));
+  if (I.shieldOn) out.push('shield'); if (I.mirrorOn) out.push('mirror');
+  if (S.mood.turboT > 0) out.push('turbo:' + S.mood.turboT.toFixed(1)); if (I.freezeT > 0) out.push('freeze:' + I.freezeT.toFixed(1));
+  return out;
+}
+
 /** Called every frame during a race: ~10 updates/sec of my progress. */
 export function netTick(dt: number) {
   if (!S.room || !S.room.online || !S.player) return;
   const now = performance.now(); if (now - lastSend < 100) return; lastSend = now;
   const lap = Math.min(S.LAPS, 1 + Math.floor(Math.max(0, S.player.dist) / S.TRACK_LEN));
-  net.send({ t: 'progress', s: { dist: S.player.dist, speed: S.player.eff || 0, lap, key: '', status: [] } });
+  net.send({ t: 'progress', s: { dist: S.player.dist, speed: S.player.eff || 0, lap, key: '', status: myStatus() } });
   if (S.player.finished && !S.player.netSent) { S.player.netSent = true; net.send({ t: 'finish', time: S.player.finishTime }); }
 }
