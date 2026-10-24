@@ -129,13 +129,26 @@ export function selectWeather(id, force) {
 function setLaps(n) { if (isOnline()) return; S.lapsPick = Math.max(1, Math.min(9, n)); S.LAPS = S.lapsPick; $('lapN').textContent = String(S.LAPS); }
 
 // ---- background: a snapshot of the hovered / chosen track, with weather on top ----
+
+const NOMOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
+let clipId = '', warmed = false;
+function playClip(id) {
+  const v = $('bgPrevVid'); if (NOMOTION || clipId === id) return;
+  clipId = id; v.classList.remove('pl');
+  v.onplaying = () => { if (clipId === id) v.classList.add('pl'); };
+  v.innerHTML = '<source src="clips/' + id + '.mp4" type="video/mp4"><source src="clips/' + id + '.webm" type="video/webm">'; v.load();
+  const pr = v.play(); if (pr && pr.catch) pr.catch(() => { /* no autoplay / missing clip: keep the still */ });
+  if (!warmed) { warmed = true; setTimeout(() => MAPS.forEach((m) => { try { fetch('clips/' + m.id + (document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"') ? '.mp4' : '.webm')).catch(() => { /* ignore */ }); } catch (e) { /* ignore */ } }), 1500); }
+}
+
 function refreshBg() {
   const bg = $('bgPrev'), step = S.gStep || 1;
-  if (step === 1) { bg.classList.remove('on'); $('wxFx').className = 'wxfx'; return; }
+  if (step === 1) { bg.classList.remove('on'); $('wxFx').className = 'wxfx'; if (clipId) { $('bgPrevVid').pause(); $('bgPrevVid').classList.remove('pl'); clipId = ''; } return; }
   const id = (step === 2 && hoverMap) || MAPS[S.myVote.map].id;
   const url = mapPrev[id];
   if (url) { const im = $('bgPrevImg'); if (im.dataset.id !== id) { im.src = url; im.dataset.id = id; } }
   bg.classList.toggle('on', !!url);
+  playClip(id);
   const wx = step === 3 ? (hoverWx || WEATHERS[S.myVote.wx].id) : 'clear';
   $('wxFx').className = 'wxfx ' + (wx === 'clear' ? '' : wx);
 }
@@ -165,6 +178,36 @@ function genPreview(map) {
   vs.forEach((v) => raceScene.remove(v.group));
   buildTrack(keep.map); S.WX = keep.wx;
   return cv.toDataURL('image/jpeg', 0.82);
+}
+
+/** dev/build tool: render a short chase-cam clip of a track as jpeg frames (used to bake public/clips/*.mp4) */
+export function recClip(id, frames, fps, speed) {
+  const map = MAPS.find((x) => x.id === id); const keep = { map: S.MAP, wx: S.WX };
+  S.WX = 'clear'; buildTrack(map); buildRaceWorld();
+  const mk = (ride, lane) => { const v = makeVehicle(ride); raceScene.add(v.group); v.model.position.y = ride.kind === 'Plane' ? 0.45 : ride.kind === 'Boat' ? -0.85 : (map.style === 'river' ? -0.5 : 0); return { v, ride, lane }; };
+  const others = RIDES.filter((r) => r.id !== S.selectedRide.id && (map.style === 'river' ? r.kind === 'Boat' : r.kind !== 'Boat' && r.kind !== 'Plane'));
+  const lead = map.style === 'river' ? RIDES.find((r) => r.kind === 'Boat') : S.selectedRide;
+  const cars = [[lead, 1.8, 0], [others[0], -1.8, 5], [others[3] || others[1], 1.8, 9.5], [others[5] || others[2], -1.8, 14]].map((c) => ({ ...mk(c[0], c[1]), off: c[2] }));
+  const W = 960, H = 560, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx2 = cv.getContext('2d'), gl = $('gl'), out = [];
+  raceCamera.fov = 60; raceCamera.aspect = S.viewport.w / S.viewport.h; raceCamera.updateProjectionMatrix(); raceCamera.up.set(0, 1, 0);
+  renderer.setViewport(0, 0, S.viewport.w, S.viewport.h);
+  for (let f = 0; f < frames; f++) {
+    const d = (f / fps) * speed;
+    for (const c of cars) {
+      const dist = d + c.off, p = pointAt(dist), nx = -p.tz, nz = p.tx, wob = Math.sin(f / fps * 1.3 + c.off) * 0.5;
+      c.v.group.position.set(p.x + nx * (c.lane + wob), p.y, p.z + nz * (c.lane + wob)); c.v.group.rotation.set(0, Math.atan2(p.tx, p.tz), 0, 'YXZ');
+    }
+    const p = { ...pointAt(d - 1) }, q = pointAt(d + 8);
+    raceCamera.position.set(p.x - p.tx * 8.5, p.y + 3.1, p.z - p.tz * 8.5); raceCamera.lookAt(q.x, q.y - 0.4, q.z);
+    S.sunTarget.position.set(p.x, p.y, p.z); S.sun.position.set(p.x - 30, 50, p.z + 20);
+    renderer.render(raceScene, raceCamera);
+    const k = Math.max(W / gl.width, H / gl.height), sw = W / k, sh = H / k;
+    cx2.drawImage(gl, (gl.width - sw) / 2, (gl.height - sh) / 2, sw, sh, 0, 0, W, H);
+    out.push(cv.toDataURL('image/jpeg', 0.9));
+  }
+  cars.forEach((c) => raceScene.remove(c.v.group));
+  buildTrack(keep.map); S.WX = keep.wx;
+  return out;
 }
 
 let prevTimer = 0;

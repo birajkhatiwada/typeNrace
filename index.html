@@ -59,7 +59,8 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--cyan); outl
 .gglow { position: absolute; left: 50%; top: 8%; width: 60vw; height: 70vh; background: radial-gradient(ellipse at 60% 50%, rgba(255,255,255,.25), rgba(255,255,255,0) 68%); pointer-events: none; }
 .gwm { position: absolute; left: 52%; width: 46%; overflow: hidden; top: 28%; text-align: center; font: italic 900 clamp(40px, 6.5vw, 110px)/1 var(--pop); letter-spacing: 2px; color: rgba(255,255,255,.1); white-space: nowrap; filter: blur(1.5px); }
 .bgprev { position: absolute; inset: 0; opacity: 0; transition: opacity .25s; background: #1b0f3a; } .bgprev.on { opacity: 1; }
-.bgprev img { position: absolute; left: 22%; top: 0; width: 78%; height: 100%; object-fit: cover; object-position: 40% 50%; }
+.bgprev img, .bgprev video { position: absolute; left: 22%; top: 0; width: 78%; height: 100%; object-fit: cover; object-position: 40% 50%; }
+.bgprev video { opacity: 0; transition: opacity .35s; } .bgprev video.pl { opacity: 1; }
 .bgprev::before { content: ""; position: absolute; inset: 0; z-index: 2; background: linear-gradient(90deg,rgba(27,15,58,.96) 0,rgba(40,18,96,.85) 28%,rgba(60,25,130,.4) 50%,rgba(60,25,130,0) 68%), linear-gradient(180deg,rgba(27,15,58,.45),rgba(27,15,58,0) 30%,rgba(27,15,58,0) 62%,rgba(27,15,58,.7)); }
 .wxfx { position: absolute; inset: 0; pointer-events: none; z-index: 1; }
 .wxfx.rain { background: linear-gradient(rgba(40,60,90,.35),rgba(40,60,90,.35)), repeating-linear-gradient(105deg, transparent 0 9px, rgba(200,225,255,.5) 9px 10px); background-size: auto, 40px 40px; animation: wxr .35s linear infinite; }
@@ -199,7 +200,7 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--cyan); outl
 <div id="app">
   <section id="garageBg" class="screen" hidden>
     <div class="gwall"></div><div class="gglow"></div><div class="gwm" id="gWm"></div>
-    <div class="bgprev" id="bgPrev"><img id="bgPrevImg" alt=""><div class="wxfx" id="wxFx"></div></div>
+    <div class="bgprev" id="bgPrev"><img id="bgPrevImg" alt=""><video id="bgPrevVid" muted loop playsinline preload="none" tabindex="-1"></video><div class="wxfx" id="wxFx"></div></div>
   </section>
   <canvas id="gl"></canvas>
   <span id="probe" class="probe">MMMMMMMMMM</span>
