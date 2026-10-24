@@ -184,10 +184,7 @@ function genPreview(map) {
 export function recClip(id, frames, fps, speed) {
   const map = MAPS.find((x) => x.id === id); const keep = { map: S.MAP, wx: S.WX };
   S.WX = 'clear'; buildTrack(map); buildRaceWorld();
-  const mk = (ride, lane) => { const v = makeVehicle(ride); raceScene.add(v.group); v.model.position.y = ride.kind === 'Plane' ? 0.45 : ride.kind === 'Boat' ? -0.85 : (map.style === 'river' ? -0.5 : 0); return { v, ride, lane }; };
-  const others = RIDES.filter((r) => r.id !== S.selectedRide.id && (map.style === 'river' ? r.kind === 'Boat' : r.kind !== 'Boat' && r.kind !== 'Plane'));
-  const lead = map.style === 'river' ? RIDES.find((r) => r.kind === 'Boat') : S.selectedRide;
-  const cars = [[lead, 1.8, 0], [others[0], -1.8, 5], [others[3] || others[1], 1.8, 9.5], [others[5] || others[2], -1.8, 14]].map((c) => ({ ...mk(c[0], c[1]), off: c[2] }));
+  const cars = []; // empty scenes: no vehicles in the background clips
   const W = 1280, H = 748, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx2 = cv.getContext('2d'), gl = $('gl'), out = [];
   raceCamera.fov = 60; raceCamera.aspect = S.viewport.w / S.viewport.h; raceCamera.updateProjectionMatrix(); raceCamera.up.set(0, 1, 0);
   renderer.setViewport(0, 0, S.viewport.w, S.viewport.h);
