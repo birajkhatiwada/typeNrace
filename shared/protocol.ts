@@ -6,13 +6,13 @@ export type Phase = 'lobby' | 'racing' | 'finished';
 export interface PlayerView {
   id: string; name: string; av: number;
   ride: string | null;      // picked ride id
-  vote: { map: number; wx: number; diff: number } | null;
+  vote: { map: number; wx: number; diff: number; laps?: number } | null;
   ready: boolean;
   again: boolean;           // asked for a rematch
 }
 export interface RoomView {
   code: string; phase: Phase; round: number; host: string; players: PlayerView[];
-  start?: { map: number; wx: number; diff: number; seed: number }; // seed also drives the shared word list // set when the race is starting
+  start?: { map: number; wx: number; diff: number; seed: number; laps?: number }; // seed also drives the shared word list // set when the race is starting
 }
 export interface RaceState { dist: number; speed: number; lap: number; key: string; status: string[]; }
 
@@ -21,7 +21,7 @@ export type ClientMsg =
   | { t: 'create'; name: string; av: number }
   | { t: 'join'; code: string; name: string; av: number }
   | { t: 'pick'; ride: string }
-  | { t: 'vote'; map: number; wx: number; diff: number }
+  | { t: 'vote'; map: number; wx: number; diff: number; laps?: number } // laps: only the host's value is used
   | { t: 'ready'; ready: boolean }
   | { t: 'progress'; s: RaceState }
   | { t: 'finish'; time: number }

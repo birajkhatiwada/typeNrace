@@ -43,7 +43,7 @@ export class Rooms {
         if (!r || !p) return this.err(id, 'not_in_room', 'Not in a room');
         if (r.phase !== 'lobby') return; // frozen once the race starts
         if (m.t === 'pick') { p.ride = m.ride; p.ready = false; }
-        if (m.t === 'vote') p.vote = { map: m.map, wx: m.wx, diff: m.diff };
+        if (m.t === 'vote') p.vote = { map: m.map, wx: m.wx, diff: m.diff, laps: typeof m.laps === 'number' && isFinite(m.laps) ? Math.max(1, Math.min(9, Math.round(m.laps))) : undefined };
         if (m.t === 'ready') p.ready = m.ready && !!p.ride && !!p.vote;
         this.maybeStart(r); this.broadcast(r); return;
       }
@@ -82,7 +82,7 @@ export class Rooms {
       const top = Math.max(...c.values()), tied = [...c].filter(([, n]) => n === top).map(([v]) => v);
       return tied[Math.floor(this.rnd() * tied.length)];
     };
-    r.start = { map: pickWin('map'), wx: pickWin('wx'), diff: pickWin('diff'), seed: Math.floor(this.rnd() * 2 ** 31) };
+    r.start = { map: pickWin('map'), wx: pickWin('wx'), diff: pickWin('diff'), seed: Math.floor(this.rnd() * 2 ** 31), laps: r.players.get(r.host)?.vote?.laps }; // the host decides the lap count
     r.phase = 'racing'; r.round++;
   }
 

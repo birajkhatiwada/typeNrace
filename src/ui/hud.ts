@@ -16,6 +16,7 @@ export function cacheEls() { ['gl', 'loading', 'profile', 'garage', 'race', 'res
 export function showScreen(name) {
   ['profile', 'garage', 'race', 'results'].forEach((s) => { el[s].hidden = s !== name && !(s === 'race' && name === 'results'); });
   $('garageBg').hidden = name !== 'garage';
+  $('gl').style.visibility = '';
 }
 
 function setText(node, v, key) { if (S.hudCache[key] !== v) { node.textContent = v; S.hudCache[key] = v; } }

@@ -9,6 +9,7 @@ import { syncMine, enterOnline, onlineEnabled, leaveOnline } from '../net/online
 import { MAPS, WEATHERS } from '../config/maps';
 import { DIFFS, DEFAULT_DIFF } from '../config/words';
 import { buildTrack, pointAt } from '../world/tracks/track';
+import { updateWeather } from '../world/atmosphere';
 import { buildRaceWorld } from '../world/raceWorld';
 import { loadBest } from '../storage/best';
 import { garageModels, garageScene, raceScene, raceCamera } from '../render/scenes';
@@ -80,14 +81,14 @@ function renderVotes() {
     const mine = vs.filter((v) => v.wx === i);
     b.classList.toggle('sel', S.myVote.wx === i); [...b.querySelectorAll('.vcs')].forEach((n) => n.remove()); b.insertAdjacentHTML('beforeend', chipsHtml(mine));
   });
-  $('setName').textContent = (S.MAP || MAPS[0]).name; $('lapN').textContent = String(S.LAPS); $('lapx').classList.toggle('off', isOnline());
+  $('setName').textContent = (S.MAP || MAPS[0]).name; $('lapN').textContent = String(S.LAPS); $('lapx').classList.toggle('off', lapsLocked());
 }
 
 export function applyVotes() {
   const tm = tally('map', MAPS.length), tw = tally('wx', WEATHERS.length);
   const lead = MAPS[tm.lead];
   if (!S.MAP || S.MAP.id !== lead.id) { buildTrack(lead); loadBest(); S.lapsPick = null; }
-  if (S.lapsPick && !isOnline()) S.LAPS = S.lapsPick;
+  if (lapsLocked()) S.LAPS = S.netLaps || S.MAP.laps; else if (S.lapsPick) S.LAPS = S.lapsPick;
   S.WX = WEATHERS[tw.lead].id;
   S.DIFF = DIFFS[tally('diff', 3).lead].id;
   renderVotes(); renderRideCards(); updateSum(); syncMine();
@@ -126,12 +127,13 @@ export function selectWeather(id, force) {
   applyVotes(); saveSetup();
 }
 
-function setLaps(n) { if (isOnline()) return; S.lapsPick = Math.max(1, Math.min(9, n)); S.LAPS = S.lapsPick; $('lapN').textContent = String(S.LAPS); }
+const lapsLocked = () => isOnline() && !S.room.host; // online, the host picks the lap count
+function setLaps(n) { if (lapsLocked()) return; S.lapsPick = Math.max(1, Math.min(9, n)); S.LAPS = S.lapsPick; $('lapN').textContent = String(S.LAPS); syncMine(); }
 
 // ---- background: a snapshot of the hovered / chosen track, with weather on top ----
 
 const NOMOTION = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
-let clipId = '', warmed = false;
+let clipId = '', warmed = false, wxWarm = '';
 function playClip(id) {
   const v = $('bgPrevVid'); if (NOMOTION || clipId === id) return;
   clipId = id; v.classList.remove('pl');
@@ -144,13 +146,14 @@ function playClip(id) {
 function refreshBg() {
   const bg = $('bgPrev'), step = S.gStep || 1;
   if (step === 1) { bg.classList.remove('on'); $('wxFx').className = 'wxfx'; if (clipId) { $('bgPrevVid').pause(); $('bgPrevVid').classList.remove('pl'); clipId = ''; } return; }
-  const id = (step === 2 && hoverMap) || MAPS[S.myVote.map].id;
+  const id = (step === 2 && hoverMap) || (step === 3 && S.MAP ? S.MAP.id : MAPS[S.myVote.map].id);
   const url = mapPrev[id];
   if (url) { const im = $('bgPrevImg'); if (im.dataset.id !== id) { im.src = url; im.dataset.id = id; } }
   bg.classList.toggle('on', !!url);
-  playClip(id);
   const wx = step === 3 ? (hoverWx || WEATHERS[S.myVote.wx].id) : 'clear';
-  $('wxFx').className = 'wxfx ' + (wx === 'clear' ? '' : wx);
+  playClip(wx === 'clear' ? id : id + '_' + wx);
+  if (step === 3 && wxWarm !== id) { wxWarm = id; WEATHERS.forEach((w) => { if (w.id !== 'clear') { try { fetch('clips/' + id + '_' + w.id + (document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"') ? '.mp4' : '.webm')).catch(() => { /* ignore */ }); } catch (e) { /* ignore */ } } }); }
+  $('wxFx').className = 'wxfx ' + (NOMOTION && wx !== 'clear' ? wx : '');
 }
 
 function genPreview(map) {
@@ -207,6 +210,28 @@ export function recClip(id, frames, fps, speed) {
   return out;
 }
 
+/** dev/build tool: a static-camera clip of a track with real weather falling (frames as jpegs); scale < 1 = slow motion */
+export function recWeather(id, wx, frames, fps, scale) {
+  const map = MAPS.find((x) => x.id === id); const keep = { map: S.MAP, wx: S.WX };
+  S.WX = wx; buildTrack(map); buildRaceWorld();
+  const W = 1280, H = 748, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx2 = cv.getContext('2d'), gl = $('gl'), out = [];
+  raceCamera.fov = 60; raceCamera.aspect = S.viewport.w / S.viewport.h; raceCamera.updateProjectionMatrix(); raceCamera.up.set(0, 1, 0);
+  renderer.setViewport(0, 0, S.viewport.w, S.viewport.h);
+  const p = { ...pointAt(16) }, q = pointAt(26);
+  raceCamera.position.set(p.x - p.tx * 8.5, p.y + 3.1, p.z - p.tz * 8.5); raceCamera.lookAt(q.x, q.y - 0.4, q.z);
+  S.sunTarget.position.set(p.x, p.y, p.z); S.sun.position.set(p.x - 30, 50, p.z + 20);
+  for (let f = 0; f < 90; f++) updateWeather(scale / fps, f * scale / fps, raceCamera.position); // let the particles settle into flow
+  for (let f = 0; f < frames; f++) {
+    updateWeather(scale / fps, (90 + f) * scale / fps, raceCamera.position);
+    renderer.render(raceScene, raceCamera);
+    const k = Math.max(W / gl.width, H / gl.height), sw = W / k, sh = H / k;
+    cx2.drawImage(gl, (gl.width - sw) / 2, (gl.height - sh) / 2, sw, sh, 0, 0, W, H);
+    out.push(cv.toDataURL('image/jpeg', 0.9));
+  }
+  buildTrack(keep.map); S.WX = keep.wx;
+  return out;
+}
+
 let prevTimer = 0;
 export function genPreviews() {
   if (prevTimer || MAPS.every((m) => mapPrev[m.id])) return;
@@ -223,7 +248,7 @@ export function genPreviews() {
 }
 
 export function buildSetupUI() {
-  $('mapCards').innerHTML = MAPS.map((m) => '<button type="button" class="tc" data-id="' + m.id + '" aria-label="' + esc(m.name) + '"><img alt="" src="' + (mapPrev[m.id] || BLANK) + '"><div class="lab"><strong>' + esc(m.name) + '</strong><small>' + m.laps + ' laps \u00b7 ' + esc(m.blurb || '') + '</small></div></button>').join('');
+  $('mapCards').innerHTML = MAPS.map((m) => '<button type="button" class="tc" data-id="' + m.id + '" aria-label="' + esc(m.name) + '"><img alt="" src="' + (mapPrev[m.id] || BLANK) + '"><div class="lab"><strong>' + esc(m.name) + '</strong></div></button>').join('');
   [...$('mapCards').children].forEach((b, n) => {
     b.addEventListener('click', () => selectMap(MAPS[n]));
     b.addEventListener('mouseenter', () => { hoverMap = MAPS[n].id; refreshBg(); }); b.addEventListener('mouseleave', () => { hoverMap = null; refreshBg(); });
@@ -306,6 +331,7 @@ export function setStep(n) {
   RIDES.forEach((r) => { if (garageModels[r.id]) garageModels[r.id].group.visible = n === 1 && r.id === S.selectedRide.id; });
   if (S.garageMirror) S.garageMirror.visible = n === 1;
   $('gWm').style.display = n === 1 ? '' : 'none';
+  $('gl').style.visibility = n === 1 ? '' : 'hidden'; // steps 2-3 draw nothing in 3D; hiding avoids blending the empty canvas over the video
   hoverMap = null; hoverWx = null; refreshBg(); renderStrip();
 }
 export function initSteps() {

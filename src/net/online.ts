@@ -30,7 +30,7 @@ export const onlineEnabled = () => !!serverUrl();
 
 let wired = false;
 let pending: { resolve: () => void; reject: (e: Error) => void } | null = null;
-let sent = { ride: '', map: -1, wx: -1, diff: -1 };
+let sent = { ride: '', map: -1, wx: -1, diff: -1, laps: -1 };
 let lastSend = 0;
 
 function wire() {
@@ -82,6 +82,7 @@ function applyRoom(v: RoomView) {
     members: [0, 1, 2].map((i) => { const p = others[i]; return { rv: S.onlineRivals[i], joined: !!p, picked: !!(p && p.ride), voted: !!(p && p.vote), ready: !!(p && p.ready), rideId: p && p.ride, again: !!(p && p.again) }; })
   };
   S.botVote = [0, 1, 2].map((i) => { const vt = others[i] && others[i].vote; return { map: (vt && vt.map) || 0, wx: (vt && vt.wx) || 0, diff: vt ? vt.diff : 1 }; });
+  { const hv = v.players.find((p) => p.id === v.host); S.netLaps = (hv && hv.vote && hv.vote.laps) || 0; }
   S.tieSeed = 0.5;
   // A new round (first start from the lobby, or a rematch) begins for everyone at the same time.
   if (v.phase === 'racing' && v.start && v.round > (S.netRound || 0) && ['garage', 'finished'].includes(S.state)) { S.netRound = v.round; launch(v); return; }
@@ -94,7 +95,8 @@ export function syncMine() {
   if (!S.room || !S.room.online || S.room.started || !net.open) return;
   const ride = S.selectedRide && S.selectedRide.id;
   if (ride && ride !== sent.ride) { sent.ride = ride; net.send({ t: 'pick', ride }); }
-  if (S.myVote.map !== sent.map || S.myVote.wx !== sent.wx || S.myVote.diff !== sent.diff) { sent.map = S.myVote.map; sent.wx = S.myVote.wx; sent.diff = S.myVote.diff; net.send({ t: 'vote', map: sent.map, wx: sent.wx, diff: sent.diff }); }
+  const laps = S.room.host ? S.LAPS : 0;
+  if (S.myVote.map !== sent.map || S.myVote.wx !== sent.wx || S.myVote.diff !== sent.diff || laps !== sent.laps) { sent.map = S.myVote.map; sent.wx = S.myVote.wx; sent.diff = S.myVote.diff; sent.laps = laps; net.send({ t: 'vote', map: sent.map, wx: sent.wx, diff: sent.diff, laps: laps || undefined }); }
 }
 
 /** "Race again" online: ask the server, which restarts everyone once all players have asked. */
@@ -113,7 +115,7 @@ export function setReady(ready: boolean) { net.send({ t: 'ready', ready }); }
 function launch(v: RoomView) {
   closeRoomTimer();
   const map = MAPS[v.start.map]; if (!S.MAP || S.MAP.id !== map.id) { buildTrack(map); loadBest(); }
-  S.WX = WEATHERS[v.start.wx].id;
+  S.WX = WEATHERS[v.start.wx].id; S.LAPS = v.start.laps || map.laps;
   S.DIFF = DIFFS[v.start.diff].id; S.wordSeed = v.start.seed; // same words for every player
   audioStart(); startRace();
   const ab = document.getElementById('againBtn'); if (ab) { ab.disabled = false; ab.classList.remove('waiting'); ab.innerHTML = 'RACE AGAIN &#9654;'; }
@@ -126,7 +128,7 @@ export async function enterOnline(kind: 'create' | 'join', code?: string) {
     const hint = setInterval(() => toast('Waking up the game server\u2026 this can take about a minute', '#b8860b'), 1500);
     try { await net.connect(serverUrl()!); } finally { clearInterval(hint); }
   }
-  sent = { ride: '', map: -1, wx: -1, diff: -1 }; S.netRound = 0;
+  sent = { ride: '', map: -1, wx: -1, diff: -1, laps: -1 }; S.netRound = 0;
   const p = S.profile;
   const done = new Promise<void>((resolve, reject) => { pending = { resolve, reject }; });
   S.state = 'garage';
