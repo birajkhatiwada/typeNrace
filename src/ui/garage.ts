@@ -138,7 +138,7 @@ function playClip(id) {
   v.onplaying = () => { if (clipId === id) v.classList.add('pl'); };
   v.innerHTML = '<source src="clips/' + id + '.mp4" type="video/mp4"><source src="clips/' + id + '.webm" type="video/webm">'; v.load();
   const pr = v.play(); if (pr && pr.catch) pr.catch(() => { /* no autoplay / missing clip: keep the still */ });
-  if (!warmed) { warmed = true; setTimeout(() => MAPS.forEach((m) => { try { fetch('clips/' + m.id + (document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"') ? '.mp4' : '.webm')).catch(() => { /* ignore */ }); } catch (e) { /* ignore */ } }), 1500); }
+  if (!warmed) { warmed = true; const cur = MAPS[S.myVote.map]; if (cur && cur.id !== id) setTimeout(() => { try { fetch('clips/' + cur.id + (document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"') ? '.mp4' : '.webm')).catch(() => { /* ignore */ }); } catch (e) { /* ignore */ } }, 800); }
 }
 
 function refreshBg() {
@@ -188,7 +188,7 @@ export function recClip(id, frames, fps, speed) {
   const others = RIDES.filter((r) => r.id !== S.selectedRide.id && (map.style === 'river' ? r.kind === 'Boat' : r.kind !== 'Boat' && r.kind !== 'Plane'));
   const lead = map.style === 'river' ? RIDES.find((r) => r.kind === 'Boat') : S.selectedRide;
   const cars = [[lead, 1.8, 0], [others[0], -1.8, 5], [others[3] || others[1], 1.8, 9.5], [others[5] || others[2], -1.8, 14]].map((c) => ({ ...mk(c[0], c[1]), off: c[2] }));
-  const W = 960, H = 560, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx2 = cv.getContext('2d'), gl = $('gl'), out = [];
+  const W = 1280, H = 748, cv = document.createElement('canvas'); cv.width = W; cv.height = H; const cx2 = cv.getContext('2d'), gl = $('gl'), out = [];
   raceCamera.fov = 60; raceCamera.aspect = S.viewport.w / S.viewport.h; raceCamera.updateProjectionMatrix(); raceCamera.up.set(0, 1, 0);
   renderer.setViewport(0, 0, S.viewport.w, S.viewport.h);
   for (let f = 0; f < frames; f++) {
