@@ -51,7 +51,7 @@ export function updateRoomUI() {
   const b = $('startBtn'), want = S.room.ready ? 'r' + (wait.length ? wait[0].rv.name : '') : 'o';
   if (b.dataset.s !== want) {
     b.dataset.s = want; b.classList.toggle('ready', S.room.ready);
-    b.innerHTML = S.room.ready ? '<span class="k">&#10003;</span><span class="t">READY</span><span class="t wt">WAITING FOR<br>' + esc(wait.length ? wait[0].rv.name.toUpperCase() : 'PLAYERS') + '&hellip;</span>' : '<span class="k">A</span><span class="t">OK</span>';
+    b.innerHTML = S.room.ready ? '<span>&#10003; READY</span><span class="wt">WAITING FOR<br>' + esc(wait.length ? wait[0].rv.name.toUpperCase() : 'PLAYERS') + '&hellip;</span>' : 'READY &#9654;';
   }
 }
 
@@ -67,7 +67,7 @@ function updateOnlineRoomUI() {
   const b = $('startBtn'), want = alone ? 'alone' : S.room.ready ? 'r' + (wait.length ? wait[0].rv.name : '') : 'o';
   if (b.dataset.s !== want) {
     b.dataset.s = want; b.classList.toggle('ready', S.room.ready && !alone); b.classList.toggle('off', alone);
-    b.innerHTML = alone ? '<span class="k">A</span><span class="t">OK</span><span class="t wt">NEEDS 2+<br>PLAYERS</span>'
-      : S.room.ready ? '<span class="k">&#10003;</span><span class="t">READY</span><span class="t wt">WAITING FOR<br>' + esc(wait.length ? wait[0].rv.name.toUpperCase() : 'PLAYERS') + '&hellip;</span>' : '<span class="k">A</span><span class="t">OK</span>';
+    b.innerHTML = alone ? '<span>READY &#9654;</span><span class="wt">NEEDS 2+<br>PLAYERS</span>'
+      : S.room.ready ? '<span>&#10003; READY</span><span class="wt">WAITING FOR<br>' + esc(wait.length ? wait[0].rv.name.toUpperCase() : 'PLAYERS') + '&hellip;</span>' : 'READY &#9654;';
   }
 }

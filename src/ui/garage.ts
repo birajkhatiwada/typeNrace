@@ -1,17 +1,18 @@
 // @ts-nocheck
 import * as THREE from 'three';
 import { S } from '../core/state';
-import { RIDES, RIVALS } from '../config/rides';
+import { RIDES } from '../config/rides';
 import { botRideList, rollBotVotes, tally, voters } from '../rooms/voting';
-import { $, esc, fmtTime } from '../utils/helpers';
+import { $, esc } from '../utils/helpers';
 import { me, rivals } from '../core/player';
 import { syncMine, enterOnline, onlineEnabled, leaveOnline } from '../net/online';
-import { MAPS, WEATHERS, WX_UI } from '../config/maps';
+import { MAPS, WEATHERS } from '../config/maps';
 import { DIFFS, DEFAULT_DIFF } from '../config/words';
-import { buildTrack } from '../world/tracks/track';
+import { buildTrack, pointAt } from '../world/tracks/track';
+import { buildRaceWorld } from '../world/raceWorld';
 import { loadBest } from '../storage/best';
-import { garageModels, raceScene } from '../render/scenes';
-import { setGarageTheme } from '../world/garage';
+import { garageModels, garageScene, raceScene, raceCamera } from '../render/scenes';
+import { renderer } from '../render/renderer';
 import { makeVehicle } from '../vehicles/vehicle';
 import { el, showScreen } from './hud';
 import { layout } from '../render/layout';
@@ -21,86 +22,95 @@ export const thumbURL = {};
 
 export const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAABAAEAAAICTAEAOw==';
 
-const visRides = () => RIDES;
+const TABS = [['All', null], ['Sports', ['Sports', 'Racer', 'Sedan', 'Kart']], ['Trucks', ['Truck', 'SUV', 'Van']], ['Bikes', ['Bike']], ['Boats', ['Boat']], ['Air', ['Plane']]];
+const WXI = { clear: ['\u2600\uFE0F', '#ffe27a', '#f4a62a'], rain: ['\uD83C\uDF27\uFE0F', '#7db8f2', '#2f5fae'], snow: ['\u2744\uFE0F', '#e6f4ff', '#8fb6d9'], sand: ['\uD83C\uDF2A\uFE0F', '#efc27a', '#b87a33'], fog: ['\uD83C\uDF2B\uFE0F', '#d3d9e2', '#808b9c'], rand: ['\uD83C\uDFB2', '#b98bff', '#5b3fd0'] };
+const mapPrev = {};
+let hoverMap = null, hoverWx = null;
 
-const chipsHtml = (list) => (list.length ? '<div class="vcs">' + list.map((v) => '<u class="vc" style="background:' + v.color + '">' + v.av + '</u>').join('') + '</div>' : '');
+const chipsHtml = (list) => (list.length ? '<div class="vcs">' + list.slice(0, 4).map((v) => '<i class="vc" style="background:' + v.color + '">' + v.av + '</i>').join('') + '</div>' : '');
+const isOnline = () => !!(S.room && S.room.online);
+
+function renderTabs() {
+  const t = $('rideTabs2'); if (!t || t.children.length) return;
+  S.gTab = S.gTab || 0;
+  t.innerHTML = TABS.map((x, i) => '<button type="button" data-i="' + i + '" class="' + (i === S.gTab ? 'on' : '') + '">' + x[0] + '</button>').join('');
+  [...t.children].forEach((b) => b.addEventListener('click', () => { S.gTab = +b.dataset.i; [...t.children].forEach((c, i) => c.classList.toggle('on', i === S.gTab)); $('cards').scrollTop = 0; renderRideCards(); }));
+}
+
+export function renderStrip() {
+  const bots = botRideList(), m = me(), step = S.gStep || 1, max = isOnline() ? 4 : 6;
+  const seat = (av, name, c, ride, st, empty) => empty
+    ? '<div class="pl empty"><b>?</b><div><strong>Waiting\u2026</strong><em class="ch">open seat</em></div></div>'
+    : '<div class="pl" style="--p:' + c + '"><b>' + av + '</b><div><strong>' + esc(name) + '</strong><em class="' + (st === 'y' ? 'ok' : 'ch') + '">' + (st === 'y' ? '\u2713 READY' : st) + '</em></div>' + (ride ? '<img alt="" src="' + (thumbURL[ride.id] || BLANK) + '">' : '') + '</div>';
+  let h = seat(m.av, 'You', m.color, S.selectedRide, S.room && S.room.ready ? 'y' : step === 1 ? 'choosing\u2026' : 'voting\u2026'), n = 1;
+  rivals().forEach((r, i) => {
+    const mem = S.room && S.room.members[i];
+    if (mem && !mem.joined) { h += seat(0, 0, 0, 0, 0, true); return; }
+    n++; h += seat(r.av, r.name, r.color, !mem || mem.picked ? bots[i] : null, mem && mem.ready ? 'y' : mem && !mem.picked ? 'choosing\u2026' : 'voting\u2026');
+  });
+  for (let i = 1 + rivals().length; i < max; i++) h += seat(0, 0, 0, 0, 0, true);
+  $('joined').innerHTML = h; $('plab').textContent = (step === 1 ? 'IN THE ROOM' : 'VOTES') + ' \u00b7 ' + n + ' OF ' + max;
+}
 
 export function renderRideCards() {
+  renderTabs();
   const bots = botRideList(), pick = {};
   bots.forEach((r, i) => { if (!S.room || S.room.members[i].picked) pick[r.id] = rivals()[i]; });
-  let h = '';
-  const PG = 20, pages = Math.ceil(RIDES.length / PG);
-  RIDES.slice((S.gPage || 0) * PG, (S.gPage || 0) * PG + PG).forEach((r) => {
-    const p = pick[r.id], on = r.id === S.selectedRide.id;
-    const tag = on ? '<b>P1</b>' : p ? '<b style="background:' + p.color + ';color:#fff">' + p.av + ' ' + esc(p.name) + '</b>' : '';
-    const st = p && !on ? ' style="outline:2px solid ' + p.color + ';outline-offset:-2px;background:linear-gradient(160deg,' + p.color + '88,' + p.color + '22)"' : '';
-    h += '<button type="button" class="cell' + (on ? ' sel' : '') + '" data-id="' + r.id + '" aria-pressed="' + on + '" aria-label="' + esc(r.name) + '"' + st + '><img alt="" src="' + (thumbURL[r.id] || BLANK) + '">' + tag + '</button>';
-  });
-  for (let i = Math.min(PG, RIDES.length - (S.gPage || 0) * PG); i < PG; i++) h += '<div class="cell empty"></div>';
-  { const dots = $('gDots'); dots.innerHTML = Array.from({ length: pages }, (_, i) => '<i class="' + (i === (S.gPage || 0) ? 'on' : '') + '" data-p="' + i + '"></i>').join(''); [...dots.children].forEach((d) => d.addEventListener('click', () => { S.gPage = +d.dataset.p; renderRideCards(); })); }
-  const g = $('cards'); g.innerHTML = h;
+  const kinds = TABS[S.gTab || 0][1], list = RIDES.filter((r) => !kinds || kinds.includes(r.kind));
+  const g = $('cards'), top = g.scrollTop;
+  g.innerHTML = list.map((r) => {
+    const p = pick[r.id], on = r.id === S.selectedRide.id, who = on ? me() : p;
+    return '<button type="button" class="rc2' + (on ? ' sel' : '') + '" style="--h:' + r.color + '" data-id="' + r.id + '" aria-pressed="' + on + '" aria-label="' + esc(r.name) + '">' + (who ? '<div class="vcs"><i class="vc" style="background:' + who.color + '">' + who.av + '</i></div>' : '') + '<img alt="" src="' + (thumbURL[r.id] || BLANK) + '"><span>' + esc(r.name) + '</span></button>';
+  }).join('');
+  g.scrollTop = top;
   [...g.querySelectorAll('button')].forEach((b) => b.addEventListener('click', () => selectRide(RIDES.find((r) => r.id === b.dataset.id))));
-  const m = me();
-  const alt = (av, name, c, ride, p1, st, pend) => '<div class="alt' + (pend ? ' pend' : '') + '" style="background:linear-gradient(135deg,' + c + ',' + c + '88)"><i>' + av + '</i><img alt="" src="' + (pend ? BLANK : (thumbURL[ride.id] || BLANK)) + '"><span>' + esc(name) + '</span>' + (p1 ? '<b>P1</b>' : '') + (st ? '<em class="bd ' + st + '">' + (st === 'y' ? '&#10003;' : '&hellip;') + '</em>' : '') + '</div>';
-  const slot = '<div class="alt slot">WAITING<br>FOR PLAYER</div>';
-  let jh = alt(m.av, m.name, m.color, S.selectedRide, true, S.room ? (S.room.ready ? 'y' : 'n') : '', false);
-  rivals().forEach((r, i) => { const mem = S.room && S.room.members[i]; if (mem && !mem.joined) { jh += slot; return; } jh += alt(r.av, r.name, r.color, bots[i], false, mem ? (mem.ready ? 'y' : 'n') : '', !!mem && !mem.picked); });
-  if (S.room && !S.room.online) jh += slot + slot;
-  $('joined').innerHTML = jh;
+  renderStrip();
 }
 
 function renderVotes() {
-  const vs = voters(), tm = tally('map', MAPS.length), tw = tally('wx', WEATHERS.length);
-  [...$('mapCards').children].forEach((b, i) => {
-    const mine = vs.filter((v) => v.map === i);
-    b.classList.toggle('sel', S.myVote.map === i); b.setAttribute('aria-pressed', S.myVote.map === i ? 'true' : 'false');
-    [...b.querySelectorAll('.vcs,.lead')].forEach((n) => n.remove());
-    b.insertAdjacentHTML('beforeend', chipsHtml(mine) + (tm.lead === i ? '<em class="lead">' + tm.counts[i] + '</em>' : ''));
+  const vs = voters();
+  const fill = (id, kind) => [...$(id).children].forEach((b, i) => {
+    const mine = vs.filter((v) => v[kind] === i);
+    b.classList.toggle('sel', S.myVote[kind] === i); b.setAttribute('aria-pressed', S.myVote[kind] === i ? 'true' : 'false');
+    [...b.querySelectorAll('.vcs')].forEach((n) => n.remove());
+    b.insertAdjacentHTML('beforeend', chipsHtml(mine));
   });
-  const td = tally('diff', 3);
-  [...$('dfChips').children].forEach((b, i) => {
-    const mine = vs.filter((v) => v.diff === i);
-    b.classList.toggle('sel', S.myVote.diff === i); b.setAttribute('aria-pressed', S.myVote.diff === i ? 'true' : 'false');
-    [...b.querySelectorAll('.vcs,.lead')].forEach((n) => n.remove());
-    b.insertAdjacentHTML('beforeend', chipsHtml(mine) + (td.lead === i ? '<em class="lead">' + td.counts[i] + '</em>' : ''));
-  });
-  [...$('wxChips').children].forEach((b, i) => {
+  fill('mapCards', 'map'); fill('dfChips', 'diff');
+  const wc = $('wxChips'); [...wc.children].slice(0, WEATHERS.length).forEach((b, i) => {
     const mine = vs.filter((v) => v.wx === i);
-    b.classList.toggle('sel', S.myVote.wx === i); b.setAttribute('aria-pressed', S.myVote.wx === i ? 'true' : 'false');
-    [...b.querySelectorAll('.vcs,.lead')].forEach((n) => n.remove());
-    b.insertAdjacentHTML('beforeend', chipsHtml(mine) + (tw.lead === i ? '<em class="lead">' + tw.counts[i] + '</em>' : ''));
+    b.classList.toggle('sel', S.myVote.wx === i); [...b.querySelectorAll('.vcs')].forEach((n) => n.remove()); b.insertAdjacentHTML('beforeend', chipsHtml(mine));
   });
+  $('setName').textContent = (S.MAP || MAPS[0]).name; $('lapN').textContent = String(S.LAPS); $('lapx').classList.toggle('off', isOnline());
 }
 
 export function applyVotes() {
   const tm = tally('map', MAPS.length), tw = tally('wx', WEATHERS.length);
   const lead = MAPS[tm.lead];
-  if (!S.MAP || S.MAP.id !== lead.id) { buildTrack(lead); loadBest(); }
+  if (!S.MAP || S.MAP.id !== lead.id) { buildTrack(lead); loadBest(); S.lapsPick = null; }
+  if (S.lapsPick && !isOnline()) S.LAPS = S.lapsPick;
   S.WX = WEATHERS[tw.lead].id;
   S.DIFF = DIFFS[tally('diff', 3).lead].id;
   renderVotes(); renderRideCards(); updateSum(); syncMine();
-  if (S.gStep === 2) refreshWxPrev();
+  refreshBg();
 }
 
 function stepRide(d) {
-  const list = visRides(); let i = list.indexOf(S.selectedRide); i = i < 0 ? 0 : (i + d + list.length) % list.length; selectRide(list[i]);
+  const list = RIDES; let i = list.indexOf(S.selectedRide); i = i < 0 ? 0 : (i + d + list.length) % list.length; selectRide(list[i]);
 }
 
 export function selectRide(ride) {
-  S.selectedRide = ride; S.gPage = Math.floor(RIDES.indexOf(ride) / 20); S.garagePop = 1; S.garageIdle = Math.max(S.garageIdle, 0.6);
-  RIDES.forEach((r) => { garageModels[r.id].group.visible = r.id === ride.id; });
-  $('gName').textContent = ride.name;
-  $('gTrait').textContent = ride.trait;
-  [['gSpeed', ride.speed], ['gHandling', ride.handling], ['gBoost', ride.boost]].forEach(([id, n]) => {
-    [...$(id).children].forEach((p, i) => { p.className = 'pip' + (i < n ? ' on' : ''); });
-  });
+  S.selectedRide = ride; S.garagePop = 1; S.garageIdle = Math.max(S.garageIdle, 0.6);
+  RIDES.forEach((r) => { if (garageModels[r.id]) garageModels[r.id].group.visible = (S.gStep || 1) === 1 && r.id === ride.id; });
+  if (S.garageMirror) { garageScene.remove(S.garageMirror); S.garageMirror = null; }
+  if (garageModels[ride.id]) { S.garageMirror = garageModels[ride.id].group.clone(true); S.garageMirror.visible = (S.gStep || 1) === 1; garageScene.add(S.garageMirror); }
+  const wm = $('gWm'); if (wm) wm.textContent = ride.name.toUpperCase();
   renderRideCards(); syncMine();
   saveSetup();
 }
 
-export function updateSum() { try { setGarageTheme(S.MAP); } catch (e) { console.error(e); } }
+export function updateSum() { /* the ride screen has no themed room any more */ }
 
-function saveSetup() { updateSum(); try { localStorage.setItem('turbotype-setup', JSON.stringify({ map: MAPS[S.myVote.map].id, wx: WEATHERS[S.myVote.wx].id, diff: DIFFS[S.myVote.diff].id, ride: S.selectedRide && S.selectedRide.id })); } catch (e) { /* ignore */ } }
+function saveSetup() { try { localStorage.setItem('turbotype-setup', JSON.stringify({ map: MAPS[S.myVote.map].id, wx: WEATHERS[S.myVote.wx].id, diff: DIFFS[S.myVote.diff].id, ride: S.selectedRide && S.selectedRide.id })); } catch (e) { /* ignore */ } }
 
 export function selectMap(map, force) {
   S.myVote.map = Math.max(0, MAPS.indexOf(map));
@@ -108,9 +118,7 @@ export function selectMap(map, force) {
   applyVotes(); saveSetup();
 }
 
-export function selectDiff(i) {
-  S.myVote.diff = i; applyVotes(); saveSetup();
-}
+export function selectDiff(i) { S.myVote.diff = i; applyVotes(); saveSetup(); }
 
 export function selectWeather(id, force) {
   S.myVote.wx = Math.max(0, WEATHERS.findIndex((w) => w.id === id));
@@ -118,33 +126,76 @@ export function selectWeather(id, force) {
   applyVotes(); saveSetup();
 }
 
-function drawMapThumb(cv, map) {
-  const cx = cv.getContext('2d'); const w = cv.width, h = cv.height;
-  const bg = { forest: '#5f9f45', desert: '#d9b878', snow: '#e8f0f7', city: '#8b90a0' }[map.style === 'space' ? 'city' : map.biome];
-  cx.fillStyle = map.style === 'space' ? '#b5532f' : map.style === 'river' ? '#55d4b6' : bg; cx.fillRect(0, 0, w, h);
-  cx.fillStyle = 'rgba(255,255,255,0.08)'; for (let x = 0; x < w; x += 24) for (let y = 0; y < h; y += 24) if (((x + y) / 24) % 2 === 0) cx.fillRect(x, y, 24, 24);
-  const xs = map.verts.map((v) => v[0]), ys = map.verts.map((v) => v[1]);
-  const mnx = Math.min(...xs), mxx = Math.max(...xs), mny = Math.min(...ys), mxy = Math.max(...ys);
-  const pad = 22, sc = Math.min((w - 2 * pad) / (mxx - mnx || 1), (h - 2 * pad) / (mxy - mny || 1));
-  const ox = (w - (mxx - mnx) * sc) / 2, oy = (h - (mxy - mny) * sc) / 2;
-  const P = (v) => [ox + (v[0] - mnx) * sc, oy + (v[1] - mny) * sc];
-  cx.lineJoin = 'round'; cx.lineCap = 'round';
-  cx.beginPath(); map.verts.forEach((v, i) => { const [x, y] = P(v); i ? cx.lineTo(x, y) : cx.moveTo(x, y); }); cx.closePath();
-  cx.strokeStyle = '#ffffff'; cx.lineWidth = 15; cx.stroke(); cx.strokeStyle = '#33333d'; cx.lineWidth = 10; cx.stroke();
-  const [sx, sy] = P(map.verts[0]); cx.fillStyle = '#ffd23f'; cx.beginPath(); cx.arc(sx, sy, 7, 0, 7); cx.fill();
+function setLaps(n) { if (isOnline()) return; S.lapsPick = Math.max(1, Math.min(9, n)); S.LAPS = S.lapsPick; $('lapN').textContent = String(S.LAPS); }
+
+// ---- background: a snapshot of the hovered / chosen track, with weather on top ----
+function refreshBg() {
+  const bg = $('bgPrev'), step = S.gStep || 1;
+  if (step === 1) { bg.classList.remove('on'); $('wxFx').className = 'wxfx'; return; }
+  const id = (step === 2 && hoverMap) || MAPS[S.myVote.map].id;
+  const url = mapPrev[id];
+  if (url) { const im = $('bgPrevImg'); if (im.dataset.id !== id) { im.src = url; im.dataset.id = id; } }
+  bg.classList.toggle('on', !!url);
+  const wx = step === 3 ? (hoverWx || WEATHERS[S.myVote.wx].id) : 'clear';
+  $('wxFx').className = 'wxfx ' + (wx === 'clear' ? '' : wx);
 }
 
-const bestOf = (id) => { try { return parseFloat(localStorage.getItem('turbotype-best-' + id) || (id === 'forest' ? localStorage.getItem('turbotype-best') : '')) || null; } catch (e) { return null; } };
+function genPreview(map) {
+  const keep = { map: S.MAP, wx: S.WX };
+  S.WX = 'clear'; buildTrack(map); buildRaceWorld();
+  const mk = (ride, dist, lane) => {
+    const v = makeVehicle(ride); raceScene.add(v.group);
+    const p = pointAt(dist), nx = -p.tz, nz = p.tx;
+    v.group.position.set(p.x + nx * lane, p.y, p.z + nz * lane); v.group.rotation.set(0, Math.atan2(p.tx, p.tz), 0, 'YXZ');
+    v.model.position.y = ride.kind === 'Plane' ? 0.45 : ride.kind === 'Boat' ? -0.85 : (map.style === 'river' ? -0.5 : 0);
+    return v;
+  };
+  const others = RIDES.filter((r) => r.id !== S.selectedRide.id && (map.style === 'river' ? r.kind === 'Boat' : r.kind !== 'Boat' && r.kind !== 'Plane'));
+  const ride = map.style === 'river' && S.selectedRide.kind !== 'Boat' ? RIDES.find((r) => r.kind === 'Boat') : S.selectedRide;
+  const vs = [mk(ride, 0, 1.8), mk(others[0], -3.5, -1.8), mk(others[3] || others[1], -7, 1.8), mk(others[5] || others[2], -10.5, -1.8)];
+  const p = pointAt(-0.5), cx = p.x - p.tx * 7.2, cz = p.z - p.tz * 7.2;
+  raceCamera.position.set(cx, p.y + 2.9, cz); raceCamera.up.set(0, 1, 0); raceCamera.lookAt(p.x + p.tx * 7, p.y - 0.4, p.z + p.tz * 7);
+  raceCamera.fov = 60; raceCamera.aspect = S.viewport.w / S.viewport.h; raceCamera.updateProjectionMatrix();
+  S.sunTarget.position.set(p.x, p.y, p.z); S.sun.position.set(p.x - 30, 50, p.z + 20);
+  renderer.setViewport(0, 0, S.viewport.w, S.viewport.h);
+  renderer.render(raceScene, raceCamera);
+  const gl = $('gl'), W = 1280, H = 748, cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+  const k = Math.max(W / gl.width, H / gl.height), sw = W / k, sh = H / k;
+  cv.getContext('2d').drawImage(gl, (gl.width - sw) / 2, (gl.height - sh) / 2, sw, sh, 0, 0, W, H);
+  vs.forEach((v) => raceScene.remove(v.group));
+  buildTrack(keep.map); S.WX = keep.wx;
+  return cv.toDataURL('image/jpeg', 0.82);
+}
 
-function refreshBests() { document.querySelectorAll('[data-best]').forEach((n) => { const v = bestOf(n.dataset.best); n.textContent = v ? 'Best ' + fmtTime(v) : 'No time yet'; }); }
+let prevTimer = 0;
+export function genPreviews() {
+  if (prevTimer || MAPS.every((m) => mapPrev[m.id])) return;
+  const run = () => {
+    prevTimer = 0;
+    if (S.state !== 'profile' && S.state !== 'garage') { prevTimer = setTimeout(run, 1500); return; }
+    const m = MAPS.find((x) => !mapPrev[x.id]); if (!m) return;
+    try { mapPrev[m.id] = genPreview(m); } catch (e) { console.error(e); mapPrev[m.id] = BLANK; }
+    const c = [...$('mapCards').children].find((b) => b.dataset.id === m.id); if (c) c.querySelector('img').src = mapPrev[m.id];
+    refreshBg(); layout();
+    prevTimer = setTimeout(run, 120);
+  };
+  prevTimer = setTimeout(run, 400);
+}
 
 export function buildSetupUI() {
-  $('mapCards').innerHTML = MAPS.map((m) => '<button type="button" class="map" data-id="' + m.id + '" aria-label="' + esc(m.name) + '"><canvas width="256" height="144"></canvas><span>' + esc(m.name) + '</span><small>' + m.laps + ' laps \u00b7 ' + esc(m.blurb || '') + '</small></button>').join('');
-  [...$('mapCards').children].forEach((b, n) => { drawMapThumb(b.querySelector('canvas'), MAPS[n]); b.addEventListener('click', () => selectMap(MAPS[n])); });
-  $('wxChips').innerHTML = WEATHERS.map((w) => '<button type="button" class="wxt" data-id="' + w.id + '"><i style="background:' + (WX_UI[w.id] || ['', '#ccc'])[1] + '"></i>' + esc((WX_UI[w.id] || [w.name])[0]) + '</button>').join('');
-  [...$('wxChips').children].forEach((b) => b.addEventListener('click', () => selectWeather(b.dataset.id)));
-  $('dfChips').innerHTML = DIFFS.map((d) => '<button type="button" class="dft" data-id="' + d.id + '"><b>' + d.name + '</b><i>' + esc(d.sample) + '<br>' + esc(d.ex) + '</i></button>').join('');
+  $('mapCards').innerHTML = MAPS.map((m) => '<button type="button" class="tc" data-id="' + m.id + '" aria-label="' + esc(m.name) + '"><img alt="" src="' + (mapPrev[m.id] || BLANK) + '"><div class="lab"><strong>' + esc(m.name) + '</strong><small>' + m.laps + ' laps \u00b7 ' + esc(m.blurb || '') + '</small></div></button>').join('');
+  [...$('mapCards').children].forEach((b, n) => {
+    b.addEventListener('click', () => selectMap(MAPS[n]));
+    b.addEventListener('mouseenter', () => { hoverMap = MAPS[n].id; refreshBg(); }); b.addEventListener('mouseleave', () => { hoverMap = null; refreshBg(); });
+  });
+  $('wxChips').innerHTML = WEATHERS.map((w) => '<button type="button" class="wc" data-id="' + w.id + '" aria-label="' + esc(w.name) + '" style="--g1:' + WXI[w.id][1] + ';--g2:' + WXI[w.id][2] + '"><i>' + WXI[w.id][0] + '</i></button>').join('') + '<button type="button" class="wc" data-id="rand" aria-label="Random weather" style="--g1:' + WXI.rand[1] + ';--g2:' + WXI.rand[2] + '"><i>' + WXI.rand[0] + '</i></button>';
+  [...$('wxChips').children].forEach((b, i) => {
+    b.addEventListener('click', () => selectWeather(b.dataset.id === 'rand' ? WEATHERS[Math.floor(Math.random() * WEATHERS.length)].id : b.dataset.id));
+    b.addEventListener('mouseenter', () => { hoverWx = b.dataset.id === 'rand' ? null : b.dataset.id; refreshBg(); }); b.addEventListener('mouseleave', () => { hoverWx = null; refreshBg(); });
+  });
+  $('dfChips').innerHTML = DIFFS.map((d) => '<button type="button" class="dft" data-id="' + d.id + '">' + d.name + '</button>').join('');
   [...$('dfChips').children].forEach((b, i) => b.addEventListener('click', () => selectDiff(i)));
+  $('lapMinus').addEventListener('click', () => setLaps(S.LAPS - 1)); $('lapPlus').addEventListener('click', () => setLaps(S.LAPS + 1));
   rollBotVotes();
   let saved = null; try { saved = JSON.parse(localStorage.getItem('turbotype-setup')); } catch (e) { saved = null; }
   const m = (saved && MAPS.find((x) => x.id === saved.map)) || MAPS[0];
@@ -156,8 +207,7 @@ export function buildSetupUI() {
 }
 
 export function buildGarageUI() {
-  ['gSpeed', 'gHandling', 'gBoost'].forEach((id) => { $(id).innerHTML = '<i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i><i class="pip"></i>'; });
-  window.addEventListener('keydown', (e) => { if (S.state === 'garage' && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); stepRide(e.key === 'ArrowLeft' ? -1 : 1); } });
+  window.addEventListener('keydown', (e) => { if (S.state === 'garage' && S.gStep === 1 && (e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !e.ctrlKey && !e.metaKey && !e.altKey) { e.preventDefault(); stepRide(e.key === 'ArrowLeft' ? -1 : 1); } });
   let lx = 0;
   const gl = $('gl');
   gl.addEventListener('pointerdown', (e) => { if (S.state !== 'garage') return; S.garageDrag = true; lx = e.clientX; try { gl.setPointerCapture(e.pointerId); } catch (er) { /* ignore */ } });
@@ -196,7 +246,7 @@ export function renderThumbs() {
   r2.dispose(); renderRideCards();
 }
 
-export function toGaragePage(code, joining) { S.state = 'garage'; showScreen('garage'); layout(); openRoom(code || mkCode(), !!joining); setStep(1); }
+export function toGaragePage(code, joining) { S.state = 'garage'; showScreen('garage'); layout(); openRoom(code || mkCode(), !!joining); setStep(1); genPreviews(); }
 
 export function toGarage() {
   for (const b of S.itemBoxes) raceScene.remove(b.mesh); S.itemBoxes = [];
@@ -204,22 +254,19 @@ export function toGarage() {
   for (const r of S.racers) raceScene.remove(r.v.group);
   S.racers = []; S.player = null; S.camInit = false; S.mini = null;
   if (onlineEnabled() && S.room && S.room.online) { leaveOnline(); enterOnline('create').catch(() => { S.state = 'profile'; showScreen('profile'); }); } else openRoom(mkCode(), false);
-  layout(); setStep(1);
+  layout(); setStep(1); genPreviews();
 }
 
-
-
-// ---- garage steps: 1 arena, 2 weather (+difficulty), 3 ride ----
-const TITLES = ['Choose Your Arena!', 'Pick the Weather!', 'Choose Your Ride!'];
+// ---- steps: 1 ride, 2 track, 3 setup ----
+const TITLES = ['Choose Your Ride!', 'Choose Your Track!', 'Setup!'];
 export function setStep(n) {
-  S.gStep = n; $('sk').dataset.s = String(n); $('gTitle').firstElementChild.textContent = TITLES[n - 1];
-  $('nextBtn').hidden = n === 3; $('startBtn').style.display = n === 3 ? '' : 'none';
-  RIDES.forEach((r) => { if (garageModels[r.id]) garageModels[r.id].group.visible = n === 3 && r.id === S.selectedRide.id; });
-  if (n === 2) refreshWxPrev();
-}
-export function refreshWxPrev() {
-  const cv = $('wxPrev').querySelector('canvas'); drawMapThumb(cv, S.MAP || MAPS[0]);
-  $('wxFx').className = 'wxfx ' + (S.WX || 'clear');
+  S.gStep = n; $('gPanel').dataset.s = String(n); $('gTitle').textContent = TITLES[n - 1];
+  [...$('steps').children].forEach((s, i) => { s.className = i + 1 === n ? 'on' : i + 1 < n ? 'done' : ''; s.textContent = (i + 1 < n ? '\u2713 ' : i + 1 === n ? (i + 1) + ' ' : (i + 1) + ' ') + ['RIDE', 'TRACK', 'SETUP'][i]; });
+  $('nextBtn').style.display = n === 3 ? 'none' : ''; $('startBtn').style.display = n === 3 ? '' : 'none';
+  RIDES.forEach((r) => { if (garageModels[r.id]) garageModels[r.id].group.visible = n === 1 && r.id === S.selectedRide.id; });
+  if (S.garageMirror) S.garageMirror.visible = n === 1;
+  $('gWm').style.display = n === 1 ? '' : 'none';
+  hoverMap = null; hoverWx = null; refreshBg(); renderStrip();
 }
 export function initSteps() {
   $('nextBtn').addEventListener('click', () => { if (S.gStep < 3) setStep(S.gStep + 1); });

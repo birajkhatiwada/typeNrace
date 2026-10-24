@@ -4,7 +4,6 @@ import * as THREE from 'three';
 import { S } from './state';
 import { garageCamera, garageModels, garageScene, raceCamera, raceScene } from '../render/scenes';
 import { renderer } from '../render/renderer';
-import { veilCam, veilScene } from '../render/layout';
 import { engineUpdate, sfx } from '../audio/audio';
 import { el, updateHud } from '../ui/hud';
 import { toast } from '../ui/toast';
@@ -22,26 +21,18 @@ export function frame(now) {
   if (S.state === 'loading' || S.state === 'profile') return;
   if (S.state === 'garage') {
     S.garageT += dt;
-    if (S.garageIdle > 0) S.garageIdle -= dt; else if (!S.garageDrag) S.garageSpin += dt * 0.45;
-    S.garagePop = Math.max(0, S.garagePop - dt * 2.2);
-    const pe = S.garagePop * S.garagePop;
-    const g = garageModels[S.selectedRide.id].group; g.rotation.y = -0.62 + S.garageSpin; g.position.y = 0.8 * 0.6 + pe * 0.45; g.scale.setScalar(1 - 0.07 * pe);
-    S.garageTurn.rotation.y = S.garageSpin; S.garageTurn.scale.setScalar(0.6);
-    garageCamera.position.set(5.4 + Math.sin(S.garageT * 0.25) * 0.3, 5.0 + Math.sin(S.garageT * 0.4) * 0.08, 9.8); garageCamera.lookAt(0, 0.9, 0);
-    if (renderer.toneMapping !== THREE.NeutralToneMapping) renderer.toneMapping = THREE.NeutralToneMapping;
-    renderer.toneMappingExposure = 1.0;
-    if (S.garageDust) { const p = S.garageDust.geometry.attributes.position.array; for (let i = 0; i < p.length; i += 3) { p[i + 1] += dt * 0.12; p[i] += Math.sin(S.garageT * 0.5 + i) * dt * 0.05; if (p[i + 1] > 7) p[i + 1] = 0.3; } S.garageDust.geometry.attributes.position.needsUpdate = true; }
     renderer.setViewport(S.viewport.x, S.viewport.y, S.viewport.w, S.viewport.h);
-    // the dark side shades are drawn between two passes so the ride and its plinth stay in front of them
-    renderer.autoClear = false; renderer.clear();
+    if ((S.gStep || 1) !== 1) { renderer.autoClear = true; renderer.clear(); return; }
+    if (S.garageIdle > 0) S.garageIdle -= dt;
+    S.garagePop = Math.max(0, S.garagePop - dt * 2.2);
+    const pe = S.garagePop * S.garagePop, g = garageModels[S.selectedRide.id].group, yaw = -0.62 + S.garageSpin + Math.sin(S.garageT * 0.5) * 0.06;
+    g.rotation.y = yaw; g.position.y = pe * 0.35; g.scale.setScalar(1 - 0.05 * pe);
+    const m = S.garageMirror; if (m) { m.rotation.y = yaw; m.position.set(0, -g.position.y, 0); m.scale.set(g.scale.x, -g.scale.y, g.scale.z); }
+    if (S.garageShadow) S.garageShadow.rotation.z = -yaw;
+    garageCamera.position.set(0, 1.6, 12.5); garageCamera.lookAt(0, 0.9, 0);
+    if (renderer.toneMapping !== THREE.NeutralToneMapping) renderer.toneMapping = THREE.NeutralToneMapping;
+    renderer.toneMappingExposure = 1.0; renderer.autoClear = true;
     renderer.render(garageScene, garageCamera);
-    renderer.render(veilScene, veilCam);
-    renderer.clearDepth();
-    const keep = new Set([S.garageTurn, garageModels[S.selectedRide.id].group]), hid = [];
-    garageScene.children.forEach((c) => { if (!c.isLight && !keep.has(c) && c.visible) { c.visible = false; hid.push(c); } });
-    const sau = renderer.shadowMap.autoUpdate; renderer.shadowMap.autoUpdate = false;
-    renderer.render(garageScene, garageCamera);
-    renderer.shadowMap.autoUpdate = sau; hid.forEach((c) => { c.visible = true; }); renderer.autoClear = true;
     return;
   }
   // race / countdown / finished

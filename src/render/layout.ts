@@ -35,7 +35,7 @@ export function layout() {
   $('app').style.setProperty('--u', String(u));
   $('app').style.setProperty('--ex', Math.max(0, (w / u - 1436) / 2) + 'px');
   S.viewport = { x: 0, y: 0, w, h };
-  buildVeil(w, h, u);
+  /* the dark side veils are gone: the new screens have their own backdrop */
   raceCamera.aspect = w / h; raceCamera.updateProjectionMatrix();
   garageCamera.aspect = w / h;
   // put the garage car at the left of the 1436x840 stage, whatever the window size
@@ -46,5 +46,5 @@ export function layout() {
   if (S.cur) { measureChar(); renderText(); }
 }
 
-const GCAR = { x: 440, y: 440, fov: 31 };
+const GCAR = { x: 1075, y: 470, fov: 31 };
 
