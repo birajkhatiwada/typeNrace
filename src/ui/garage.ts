@@ -26,7 +26,6 @@ export const BLANK = 'data:image/gif;base64,R0lGODlhAQABAAAAACH5BAEKAAEALAAAAAAB
 const TABS = [['All', null], ['Sports', ['Sports', 'Racer', 'Sedan', 'Kart']], ['Trucks', ['Truck', 'SUV', 'Van']], ['Bikes', ['Bike']], ['Boats', ['Boat']], ['Air', ['Plane']]];
 const WXI = { clear: ['\u2600\uFE0F', '#ffe27a', '#f4a62a'], rain: ['\uD83C\uDF27\uFE0F', '#7db8f2', '#2f5fae'], snow: ['\u2744\uFE0F', '#e6f4ff', '#8fb6d9'], sand: ['\uD83C\uDF2A\uFE0F', '#efc27a', '#b87a33'], fog: ['\uD83C\uDF2B\uFE0F', '#d3d9e2', '#808b9c'], rand: ['\uD83C\uDFB2', '#b98bff', '#5b3fd0'] };
 const mapPrev = {};
-let hoverMap = null, hoverWx = null;
 
 const chipsHtml = (list) => (list.length ? '<div class="vcs">' + list.slice(0, 4).map((v) => '<i class="vc" style="background:' + v.color + '">' + v.av + '</i>').join('') + '</div>' : '');
 const isOnline = () => !!(S.room && S.room.online);
@@ -79,8 +78,9 @@ function renderVotes() {
   fill('mapCards', 'map'); fill('dfChips', 'diff');
   const wc = $('wxChips'); [...wc.children].slice(0, WEATHERS.length).forEach((b, i) => {
     const mine = vs.filter((v) => v.wx === i);
-    b.classList.toggle('sel', S.myVote.wx === i); [...b.querySelectorAll('.vcs')].forEach((n) => n.remove()); b.insertAdjacentHTML('beforeend', chipsHtml(mine));
+    b.classList.toggle('sel', !S.wxRand && S.myVote.wx === i); [...b.querySelectorAll('.vcs')].forEach((n) => n.remove()); b.insertAdjacentHTML('beforeend', chipsHtml(mine.filter((v) => !(S.wxRand && v.key === 'you'))));
   });
+  { const d = wc.children[WEATHERS.length]; if (d) { d.classList.toggle('sel', !!S.wxRand); [...d.querySelectorAll('.vcs')].forEach((n) => n.remove()); d.insertAdjacentHTML('beforeend', chipsHtml(S.wxRand ? vs.filter((v) => v.key === 'you') : [])); } } // the dice hides which weather it picked
   $('setName').textContent = (S.MAP || MAPS[0]).name; $('lapN').textContent = String(S.LAPS); $('lapx').classList.toggle('off', lapsLocked());
 }
 
@@ -111,7 +111,7 @@ export function selectRide(ride) {
 
 export function updateSum() { /* the ride screen has no themed room any more */ }
 
-function saveSetup() { try { localStorage.setItem('turbotype-setup', JSON.stringify({ map: MAPS[S.myVote.map].id, wx: WEATHERS[S.myVote.wx].id, diff: DIFFS[S.myVote.diff].id, ride: S.selectedRide && S.selectedRide.id })); } catch (e) { /* ignore */ } }
+function saveSetup() { try { localStorage.setItem('turbotype-setup', JSON.stringify({ map: MAPS[S.myVote.map].id, wx: S.wxRand ? 'rand' : WEATHERS[S.myVote.wx].id, diff: DIFFS[S.myVote.diff].id, ride: S.selectedRide && S.selectedRide.id })); } catch (e) { /* ignore */ } }
 
 export function selectMap(map, force) {
   S.myVote.map = Math.max(0, MAPS.indexOf(map));
@@ -121,7 +121,8 @@ export function selectMap(map, force) {
 
 export function selectDiff(i) { S.myVote.diff = i; applyVotes(); saveSetup(); }
 
-export function selectWeather(id, force) {
+export function selectWeather(id, force, rand) {
+  S.wxRand = !!rand; // dice: the pick stays secret until the race starts
   S.myVote.wx = Math.max(0, WEATHERS.findIndex((w) => w.id === id));
   if (force) S.botVote.forEach((b) => { b.wx = S.myVote.wx; });
   applyVotes(); saveSetup();
@@ -146,11 +147,11 @@ function playClip(id) {
 function refreshBg() {
   const bg = $('bgPrev'), step = S.gStep || 1;
   if (step === 1) { bg.classList.remove('on'); $('wxFx').className = 'wxfx'; if (clipId) { $('bgPrevVid').pause(); $('bgPrevVid').classList.remove('pl'); clipId = ''; } return; }
-  const id = (step === 2 && hoverMap) || (step === 3 && S.MAP ? S.MAP.id : MAPS[S.myVote.map].id);
+  const id = step === 3 && S.MAP ? S.MAP.id : MAPS[S.myVote.map].id;
   const url = mapPrev[id];
   if (url) { const im = $('bgPrevImg'); if (im.dataset.id !== id) { im.src = url; im.dataset.id = id; } }
   bg.classList.toggle('on', !!url);
-  const wx = step === 3 ? (hoverWx || WEATHERS[S.myVote.wx].id) : 'clear';
+  const wx = step === 3 && !S.wxRand ? WEATHERS[S.myVote.wx].id : 'clear';
   playClip(wx === 'clear' ? id : id + '_' + wx);
   if (step === 3 && wxWarm !== id) { wxWarm = id; WEATHERS.forEach((w) => { if (w.id !== 'clear') { try { fetch('clips/' + id + '_' + w.id + (document.createElement('video').canPlayType('video/mp4; codecs="avc1.42E01E"') ? '.mp4' : '.webm')).catch(() => { /* ignore */ }); } catch (e) { /* ignore */ } } }); }
   $('wxFx').className = 'wxfx ' + (NOMOTION && wx !== 'clear' ? wx : '');
@@ -251,12 +252,10 @@ export function buildSetupUI() {
   $('mapCards').innerHTML = MAPS.map((m) => '<button type="button" class="tc" data-id="' + m.id + '" aria-label="' + esc(m.name) + '"><img alt="" src="' + (mapPrev[m.id] || BLANK) + '"><div class="lab"><strong>' + esc(m.name) + '</strong></div></button>').join('');
   [...$('mapCards').children].forEach((b, n) => {
     b.addEventListener('click', () => selectMap(MAPS[n]));
-    b.addEventListener('mouseenter', () => { hoverMap = MAPS[n].id; refreshBg(); }); b.addEventListener('mouseleave', () => { hoverMap = null; refreshBg(); });
   });
   $('wxChips').innerHTML = WEATHERS.map((w) => '<button type="button" class="wc" data-id="' + w.id + '" aria-label="' + esc(w.name) + '" style="--g1:' + WXI[w.id][1] + ';--g2:' + WXI[w.id][2] + '"><i>' + WXI[w.id][0] + '</i></button>').join('') + '<button type="button" class="wc" data-id="rand" aria-label="Random weather" style="--g1:' + WXI.rand[1] + ';--g2:' + WXI.rand[2] + '"><i>' + WXI.rand[0] + '</i></button>';
   [...$('wxChips').children].forEach((b, i) => {
-    b.addEventListener('click', () => selectWeather(b.dataset.id === 'rand' ? WEATHERS[Math.floor(Math.random() * WEATHERS.length)].id : b.dataset.id));
-    b.addEventListener('mouseenter', () => { hoverWx = b.dataset.id === 'rand' ? null : b.dataset.id; refreshBg(); }); b.addEventListener('mouseleave', () => { hoverWx = null; refreshBg(); });
+    b.addEventListener('click', () => selectWeather(b.dataset.id === 'rand' ? WEATHERS[Math.floor(Math.random() * WEATHERS.length)].id : b.dataset.id, false, b.dataset.id === 'rand'));
   });
   $('dfChips').innerHTML = DIFFS.map((d) => '<button type="button" class="dft" data-id="' + d.id + '">' + d.name + '</button>').join('');
   [...$('dfChips').children].forEach((b, i) => b.addEventListener('click', () => selectDiff(i)));
@@ -265,7 +264,8 @@ export function buildSetupUI() {
   let saved = null; try { saved = JSON.parse(localStorage.getItem('turbotype-setup')); } catch (e) { saved = null; }
   const m = (saved && MAPS.find((x) => x.id === saved.map)) || MAPS[0];
   S.myVote.map = MAPS.indexOf(m);
-  S.myVote.wx = saved && WEATHERS.some((w) => w.id === saved.wx) ? WEATHERS.findIndex((w) => w.id === saved.wx) : Math.max(0, WEATHERS.findIndex((w) => w.id === m.weather));
+  S.wxRand = !!(saved && saved.wx === 'rand');
+  S.myVote.wx = S.wxRand ? Math.floor(Math.random() * WEATHERS.length) : saved && WEATHERS.some((w) => w.id === saved.wx) ? WEATHERS.findIndex((w) => w.id === saved.wx) : Math.max(0, WEATHERS.findIndex((w) => w.id === m.weather));
   { const di = saved ? DIFFS.findIndex((d) => d.id === saved.diff) : -1; S.myVote.diff = di >= 0 ? di : DEFAULT_DIFF; }
   buildTrack(MAPS[tally('map', MAPS.length).lead]); loadBest();
   applyVotes();
@@ -320,6 +320,7 @@ export function toGarage() {
   S.racers = []; S.player = null; S.camInit = false; S.mini = null;
   if (onlineEnabled() && S.room && S.room.online) { leaveOnline(); enterOnline('create').catch(() => { S.state = 'profile'; showScreen('profile'); }); } else openRoom(mkCode(), false);
   layout(); setStep(1); genPreviews();
+  if (S.wxRand) { S.myVote.wx = Math.floor(Math.random() * WEATHERS.length); if (!(S.room && S.room.online)) applyVotes(); } // the dice re-rolls for every race
 }
 
 // ---- steps: 1 ride, 2 track, 3 setup ----
@@ -332,7 +333,7 @@ export function setStep(n) {
   if (S.garageMirror) S.garageMirror.visible = n === 1;
   $('gWm').style.display = n === 1 ? '' : 'none';
   $('gl').style.visibility = n === 1 ? '' : 'hidden'; // steps 2-3 draw nothing in 3D; hiding avoids blending the empty canvas over the video
-  hoverMap = null; hoverWx = null; refreshBg(); renderStrip();
+  refreshBg(); renderStrip();
 }
 export function initSteps() {
   $('nextBtn').addEventListener('click', () => { if (S.gStep < 3) setStep(S.gStep + 1); });

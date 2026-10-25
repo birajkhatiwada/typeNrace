@@ -15,6 +15,7 @@ import { initText, renderText } from '../typing/engine';
 import { el, showScreen, updateHud } from '../ui/hud';
 import { layout } from '../render/layout';
 import { audioStart } from '../audio/audio';
+import { toast } from '../ui/toast';
 
 function newRacer(def, ride, slot, isPlayer) {
   const v = makeVehicle(ride);
@@ -30,6 +31,7 @@ function newRacer(def, ride, slot, isPlayer) {
 export function startRace() {
   showKey("", false, false);
   if (S.builtKey !== S.MAP.id + '|' + S.WX) { buildRaceWorld(); }
+  if (S.wxRand) toast('Weather: ' + WEATHERS.find((w) => w.id === S.WX).name + '!', '#6a3fd6'); // reveal the dice's surprise
   $('raceName').textContent = S.MAP.name + (S.WX !== 'clear' ? ' · ' + WEATHERS.find((w) => w.id === S.WX).name : '');
   for (const r of S.racers) raceScene.remove(r.v.group);
   S.racers = [];

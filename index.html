@@ -216,6 +216,10 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--cyan); outl
 .lgo:active, .gb:active, .wc:active, .rc2:active, .tc:active { box-shadow: 0 1px 0 rgba(0,0,0,.35); }
 button:disabled, .lapx.off button { transform: none !important; filter: none !important; }
 @media (prefers-reduced-motion: reduce) { * { transition-duration: .01s !important; animation: none !important; } }
+/* race HUD sits a little lower so the bottom of the car shows */
+.type { top: 584px; height: 240px; } .fxrow { padding-top: 6px; height: 54px; } .grp { height: 46px; } .wrap { margin-top: 10px; }
+#it0 { top: 510px; } #it1 { top: 524px; }
+.board { top: 638px; } .br { height: 43px; margin-bottom: 4px; }
 </style>
 
 <div id="app">
