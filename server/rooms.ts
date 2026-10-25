@@ -73,10 +73,10 @@ export class Rooms {
     this.where.set(id, r.code); this.broadcast(r);
   }
 
-  /** Race starts when 2+ players are present and all are ready. Map/weather = plurality of votes, random tie-break. */
+  /** Race starts once everyone present is ready. Map/weather = plurality of votes, random tie-break. */
   private maybeStart(r: Room) {
     const ps = [...r.players.values()];
-    if (ps.length < 2 || !ps.every((p) => p.ready)) return;
+    if (ps.length < 1 || !ps.every((p) => p.ready)) return; // a lone player may race solo (bots fill the grid)
     const pickWin = (k: 'map' | 'wx' | 'diff') => {
       const c = new Map<number, number>(); ps.forEach((p) => c.set(p.vote![k], (c.get(p.vote![k]) || 0) + 1));
       const top = Math.max(...c.values()), tied = [...c].filter(([, n]) => n === top).map(([v]) => v);

@@ -72,8 +72,9 @@ button:focus-visible, input:focus-visible { outline: 3px solid var(--cyan); outl
 #garage { z-index: 5; }
 .gtitle { left: 34px; top: 12px; font: italic 800 40px var(--pop); color: #ffd630; text-shadow: 0 4px 0 #6a2bd0, 0 8px 14px #0006; }
 .steps { left: 34px; top: 84px; display: flex; gap: 8px; } .steps span { padding: 3px 16px; border-radius: 14px; background: rgba(255,255,255,.14); font: italic 700 13px var(--pop); letter-spacing: 1px; color: #e0d5fa; } .steps .on { background: #ffd630; color: #2a1250; box-shadow: 0 3px 0 #b78b00; } .steps .done { background: rgba(75,196,109,.8); color: #fff; }
-.rc { right: 34px; top: 20px; height: 58px; padding: 0 10px 0 22px; border-radius: 30px; background: linear-gradient(180deg,#2c1766,#1b0f3a); border: 3px solid #ffd630; display: flex; align-items: center; gap: 14px; box-shadow: 0 6px 0 #0006, 0 0 24px rgba(255,214,48,.35); }
-.rc small { font: 700 11px var(--pop); letter-spacing: 2px; color: #cdbdf5; display: block; } .rc b { font: 800 30px var(--mono); letter-spacing: 4px; color: #fff; } .rc button { border: 0; height: 38px; padding: 0 18px; border-radius: 19px; background: #ffd630; color: #2a1250; font: 800 14px var(--pop); box-shadow: 0 3px 0 #b78b00; }
+.rc { right: 34px; top: 20px; height: 64px; padding: 0 14px 0 26px; border-radius: 30px; background: linear-gradient(180deg,#2c1766,#1b0f3a); border: 3px solid #ffd630; display: flex; align-items: center; gap: 26px; box-shadow: 0 6px 0 #0006, 0 0 24px rgba(255,214,48,.35); }
+.how .cred { font: 400 11px/1.4 var(--pop); font-style: normal; color: rgba(255,255,255,.55); margin-top: 14px; }
+.rc small { font: 700 11px var(--pop); letter-spacing: 2px; color: #cdbdf5; display: block; } .rc b { font: 800 30px var(--mono); letter-spacing: 4px; color: #fff; } .rc button { border: 0; height: 40px; padding: 0 22px; border-radius: 19px; background: #ffd630; color: #2a1250; font: 800 14px var(--pop); box-shadow: 0 3px 0 #b78b00; }
 .gpanel { left: 30px; top: 124px; width: 690px; height: 558px; border-radius: 36px; background: rgba(20,10,55,.3); border: 3px solid rgba(255,255,255,.3); box-shadow: 0 18px 40px #0007; -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); overflow: hidden; }
 .gpanel[data-s="3"] { height: 476px; }
 .gpanel .pane { position: absolute; inset: 0; display: none; } .gpanel[data-s="1"] .p1, .gpanel[data-s="2"] .p2, .gpanel[data-s="3"] .p3 { display: block; }
@@ -233,7 +234,7 @@ button:disabled, .lapx.off button { transform: none !important; filter: none !im
       </div>
       <div class="lfoot"><button type="button" id="howBtn">HOW TO PLAY</button><button type="button" id="sndBtn">SOUND ON</button></div>
       <div class="jm" id="joinModal" hidden><div class="jb"><h2>JOIN A ROOM</h2><p>Enter the code your friend shared</p><div class="jp"><input id="jCode" maxlength="8" placeholder="XXXX-XXX" spellcheck="false" autocomplete="off" aria-label="Room code"></div><div class="jerr" id="jErr" role="alert"></div><div class="jr"><button type="button" class="pill main" id="jGo">JOIN</button><button type="button" class="pill ghost" id="jX">CANCEL</button></div><small>Rooms close once the race starts</small></div></div>
-      <div class="jm" id="howModal" hidden><div class="jb how"><h2>HOW TO PLAY</h2><p>Type the words on screen to drive. <b>Faster typing = faster car.</b></p><p>Clean words fill your <b>turbo</b> meter. Typos slow you down.</p><p>Golden words give you <b>power-ups</b> to use on rivals.</p><p>First across the line wins.</p><div class="jr"><button type="button" class="pill main" id="howX">GOT IT</button></div></div></div>
+      <div class="jm" id="howModal" hidden><div class="jb how"><h2>HOW TO PLAY</h2><p>Type the words on screen to drive. <b>Faster typing = faster car.</b></p><p>Clean words fill your <b>turbo</b> meter. Typos slow you down.</p><p>Golden words give you <b>power-ups</b> to use on rivals.</p><p>First across the line wins.</p><p class="cred">Credits: models by Kenney (CC0) and Mechanized Magic by Dumivid (CC0) &middot; icons from game-icons.net by Lorc and Delapouite (CC BY 3.0) &middot; power icons: Fluent Emoji by Microsoft (MIT)</p><div class="jr"><button type="button" class="pill main" id="howX">GOT IT</button></div></div></div>
     </div>
   </section>
 
@@ -258,7 +259,6 @@ button:disabled, .lapx.off button { transform: none !important; filter: none !im
       <button type="button" class="gb" id="backBtn" aria-label="Back">&#9664;</button>
       <button type="button" class="gb" id="nextBtn">NEXT &#9654;</button>
       <button type="button" class="gb" id="startBtn">READY &#9654;</button>
-      <div class="credit">MODELS BY: Kenney (CC0) &middot; Mechanized Magic by Dumivid (CC0) &middot; game-icons.net by Lorc and Delapouite (CC BY 3.0)</div>
     </div>
   </section>
 

@@ -38,9 +38,11 @@ export function startRace() {
   const rivalSlots = [0, 1, 2];
   S.player = newRacer({ name: me().name, color: me().color }, S.selectedRide, 3, true);
   S.racers.push(S.player);
-  const botRides = botRideList();
-  rivals().forEach((rv, n) => {
-    if (S.room && S.room.online) { if (!S.room.members[n].joined) return; const r = newRacer(rv, botRides[n], rivalSlots[n], false); r.remote = true; r.pid = rv.pid; S.racers.push(r); return; }
+  // online with nobody else in the room: race against bots, like an offline race
+  const live = !!(S.room && S.room.online && S.room.members.some((m) => m.joined));
+  const botRides = botRideList(!live);
+  (live ? rivals() : RIVALS).forEach((rv, n) => {
+    if (live) { if (!S.room.members[n].joined) return; const r = newRacer(rv, botRides[n], rivalSlots[n], false); r.remote = true; r.pid = rv.pid; S.racers.push(r); return; }
     S.racers.push(newRacer(rv, botRides[n], rivalSlots[n], false));
   });
   S.raceTime = 0; S.countdown = 3.6;

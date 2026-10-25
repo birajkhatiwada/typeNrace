@@ -96,7 +96,7 @@ export async function boot() {
   }
   prewarm();
   updateSum(); genPreviews();
-  $('startBtn').addEventListener('click', () => { audioStart(); if (!S.room) { startRace(); return; } if (S.room.online) { if (!S.room.members.some((m) => m.joined)) return; setReady(!S.room.ready); return; } S.room.ready = !S.room.ready; renderRideCards(); roomTick(); });
+  $('startBtn').addEventListener('click', () => { audioStart(); if (!S.room) { startRace(); return; } if (S.room.online) { setReady(!S.room.ready); return; } S.room.ready = !S.room.ready; renderRideCards(); roomTick(); });
   $('rcCopy').addEventListener('click', () => { const b = $('rcCopy'); try { navigator.clipboard.writeText(S.room ? S.room.code : ''); } catch (e) { /* ignore */ } b.textContent = 'COPIED'; setTimeout(() => { b.textContent = 'COPY'; }, 1200); });
   $('againBtn').addEventListener('click', () => { audioStart(); if (S.room && S.room.online) { requestRematch(); return; } startRace(); });
   $('garageBtn').addEventListener('click', toGarage);

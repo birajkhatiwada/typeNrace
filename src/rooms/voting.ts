@@ -14,8 +14,8 @@ export function tally(kind, n) {
   return { counts, lead: ties[Math.floor(S.tieSeed * ties.length) % ties.length] };
 }
 
-export function botRideList() {
-  if (S.room && S.room.online) return S.room.members.map((m) => RIDES.find((r) => r.id === m.rideId) || RIDES.find((r) => r.id !== S.selectedRide.id));
+export function botRideList(forceBots) {
+  if (!forceBots && S.room && S.room.online) return S.room.members.map((m) => RIDES.find((r) => r.id === m.rideId) || RIDES.find((r) => r.id !== S.selectedRide.id));
   const out = [], river = S.MAP && S.MAP.style === 'river';
   RIVALS.forEach((rv, n) => {
     const prefs = river ? { Mira: ['marlin', 'wave', 'storm', 'jet', 'comet'], Pip: ['jet', 'sail', 'comet', 'wave', 'storm'], Jonas: ['tug', 'comet', 'sail', 'storm', 'wave'] }[rv.name] : rv.pref;

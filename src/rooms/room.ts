@@ -62,12 +62,12 @@ function updateOnlineRoomUI() {
   const alone = joined.length === 0;
   const nReady = (S.room.ready ? 1 : 0) + joined.filter((m) => m.ready).length;
   const msg = $('roomMsg');
-  if (msg) msg.innerHTML = alone ? '<b>Waiting for friends&hellip;</b><br>Share the room code above.<br>You need at least 2 players to race.'
+  if (msg) msg.innerHTML = alone ? '<b>Racing solo?</b> Hit READY and go.<br>Or share the room code above to race friends.'
     : 'Race starts when everyone is ready<br><b>' + nReady + ' of ' + (joined.length + 1) + ' ready</b> &middot; up to 4 players<br><span>&#10003; ready &nbsp; &hellip; choosing</span>';
   const b = $('startBtn'), want = alone ? 'alone' : S.room.ready ? 'r' + (wait.length ? wait[0].rv.name : '') : 'o';
   if (b.dataset.s !== want) {
-    b.dataset.s = want; b.classList.toggle('ready', S.room.ready && !alone); b.classList.toggle('off', alone);
-    b.innerHTML = alone ? '<span>READY &#9654;</span><span class="wt">NEEDS 2+<br>PLAYERS</span>'
+    b.dataset.s = want; b.classList.toggle('ready', S.room.ready && !alone); b.classList.remove('off');
+    b.innerHTML = alone ? 'READY &#9654;'
       : S.room.ready ? '<span>&#10003; READY</span><span class="wt">WAITING FOR<br>' + esc(wait.length ? wait[0].rv.name.toUpperCase() : 'PLAYERS') + '&hellip;</span>' : 'READY &#9654;';
   }
 }

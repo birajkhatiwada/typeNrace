@@ -22,10 +22,12 @@ describe('rooms', () => {
     rooms.handle('b', { t: 'join', code: 'NOPE-123', name: 'B', av: 0 });
     expect(errs('b')[0]).toMatchObject({ code: 'no_room' });
   });
-  it('does not start with one player, and a newcomer who is not ready blocks the start', () => {
+  it('a lone player can race solo', () => {
     rooms.handle('a', { t: 'create', name: 'A', av: 0 }); readyUp('a');
-    expect(last('a').phase).toBe('lobby');
-    rooms.handle('b', { t: 'join', code: last('a').code, name: 'B', av: 1 });
+    expect(last('a').phase).toBe('racing');
+  });
+  it('a newcomer who is not ready blocks the start', () => {
+    lobby(); readyUp('a');
     expect(last('a').phase).toBe('lobby');
     readyUp('b'); expect(last('a').phase).toBe('racing');
   });
